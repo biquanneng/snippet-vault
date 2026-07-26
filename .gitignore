@@ -9,10 +9,23 @@ lerna-debug.log*
 
 node_modules
 .output
+.test-extension-builds
+.test-profiles
 stats.html
 stats-*.json
 .wxt
 web-ext.config.ts
+
+# Local env files (keep .env.example tracked)
+.env
+.env.*
+!.env.example
+
+# Local product and agent guidance
+/AGENT.md
+/AGENTS.md
+/docs/PRODUCT.md
+*.internal.md
 
 # Editor directories and files
 .vscode/*
@@ -24,3 +37,5 @@ web-ext.config.ts
 *.njsproj
 *.sln
 *.sw?
+
+.omx/

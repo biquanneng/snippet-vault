@@ -1,3 +1,100 @@
+// SPDX-License-Identifier: MPL-2.0
+
+import {
+  isExtensionRequest,
+  MESSAGE_TYPE,
+  type ExtensionRequest,
+  type ExtensionResponse,
+} from '../lib/browser/message-contract';
+import {
+  VaultMessageController,
+  type MessageSenderContext,
+} from '../lib/browser/vault-message-controller';
+import { createSnippetVaultService } from '../lib/core';
+
+let controller: VaultMessageController | null = null;
+
 export default defineBackground(() => {
-  console.log('Hello background!', { id: browser.runtime.id });
+  void browser.sidePanel
+    .setPanelBehavior({ openPanelOnActionClick: true })
+    .catch((error: unknown) => {
+      console.error(
+        '[SnippetVault] Failed to configure the side panel action',
+        error,
+      );
+    });
+
+  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!isExtensionRequest(message)) {
+      return false;
+    }
+
+    handleMessage(message, sender)
+      .then(sendResponse)
+      .catch((error: unknown) => {
+        if (message.type === MESSAGE_TYPE.searchPanel) {
+          console.error(
+            '[SnippetVault] Search message handler failed',
+            {
+              kind: message.payload.kind,
+              operation: message.payload.query.trim() ? 'search' : 'browse',
+              page: message.payload.page,
+              pageSize: message.payload.pageSize,
+            },
+            error,
+          );
+        } else {
+          console.error(
+            '[SnippetVault] Extension message handler failed',
+            { requestType: message.type },
+            error,
+          );
+        }
+        sendResponse(
+          failure('INTERNAL_ERROR', '操作失败，请稍后重试。'),
+        );
+      });
+    return true;
+  });
 });
+
+async function handleMessage(
+  request: ExtensionRequest,
+  sender: Browser.runtime.MessageSender,
+): Promise<ExtensionResponse<unknown>> {
+  return getController().handle(
+    request,
+    createSenderContext(sender),
+  );
+}
+
+function getController(): VaultMessageController {
+  if (!controller) {
+    controller = new VaultMessageController({
+      service: createSnippetVaultService(),
+    });
+  }
+  return controller;
+}
+
+function createSenderContext(
+  sender: Browser.runtime.MessageSender,
+): MessageSenderContext {
+  return {
+    extensionId: browser.runtime.id,
+    senderId: sender.id,
+    senderUrl: sender.url,
+    tabId: sender.tab?.id,
+    tabUrl: sender.tab?.url,
+  };
+}
+
+function failure(
+  code: 'INTERNAL_ERROR',
+  message: string,
+): ExtensionResponse<never> {
+  return {
+    ok: false,
+    error: { code, message },
+  };
+}
