@@ -8,10 +8,16 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { Check, LoaderCircle, Save } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  LoaderCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "../../components/ui/badge";
+import { ContextMarker } from "../../components/context-marker";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import {
@@ -26,56 +32,112 @@ import {
   MESSAGE_TYPE,
   sendExtensionMessage,
   type CreateLabelData,
+  type ContextPresetListData,
+  type ContextPresetSummary,
   type LabelListData,
   type LabelSummary,
   type SaveSelectionData,
 } from "../../lib/browser/message-contract";
 import {
   calculateTooltipPosition,
+  getRangeSelectionBox,
   isEditableTarget,
+  isKeyboardSelectionEvent,
+  isSelectionBoxVisible,
   isSnippetVaultUiEvent,
   readSelectionSnapshot,
   type SelectionSnapshot,
   type TooltipPosition,
 } from "./selection";
+import {
+  clearCapturedSelectionHighlight,
+  showCapturedSelectionHighlight,
+} from "./selection-highlight";
+import {
+  getLocalizedLabelName,
+} from "../../lib/localized-values";
+import { toIntlLocale, type SupportedLocale } from "../../lib/i18n-catalog";
+import { useI18n } from "../../lib/use-i18n";
+import { cn } from "../../lib/utils";
 
-const TOOLTIP_MAX_WIDTH = 640;
 const VIEWPORT_GUTTER = 24;
 const ESTIMATED_TOOLTIP_SIZE = {
-  width: 520,
-  height: 48,
+  width: 672,
+  height: 128,
 };
-const MAX_VISIBLE_LABELS = 4;
-
-const ENVIRONMENT_OPTIONS = [
-  { value: "development", label: "开发", context: "开发环境" },
-  { value: "test", label: "测试", context: "测试环境" },
-  { value: "staging", label: "预发布", context: "预发布环境" },
-  { value: "production", label: "生产", context: "生产环境" },
-] as const;
-
-type EnvironmentValue = (typeof ENVIRONMENT_OPTIONS)[number]["value"];
+const MAX_VISIBLE_LABELS = 8;
+const NARROW_MAX_VISIBLE_LABELS = 5;
+const COMPACT_MAX_VISIBLE_LABELS = 3;
+const COMPACT_VIEWPORT_WIDTH = 360;
+const CLOSING_ANIMATION_MS = 150;
 
 interface SelectionTooltipProps {
   portalContainer: HTMLElement;
 }
 
 export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
+  const { locale, t } = useI18n();
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
   const hideTimerRef = useRef<number | null>(null);
-  const labelsRequestedRef = useRef(false);
+  const closingTimerRef = useRef<number | null>(null);
+  const viewportUpdateFrameRef = useRef<number | null>(null);
   const uiPointerActiveRef = useRef(false);
+  const savedRangeRef = useRef<Range | null>(null);
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
   const [position, setPosition] = useState<TooltipPosition | null>(null);
   const [labels, setLabels] = useState<LabelSummary[]>([]);
+  const [contexts, setContexts] = useState<ContextPresetSummary[]>([]);
   const [labelsLoading, setLabelsLoading] = useState(false);
-  const [selectedLabelId, setSelectedLabelId] = useState<string>();
+  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
   const [labelInput, setLabelInput] = useState("");
-  const [environment, setEnvironment] = useState<EnvironmentValue>();
+  const [contextId, setContextId] = useState<string>();
   const [creatingLabel, setCreatingLabel] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [labelsExpanded, setLabelsExpanded] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    const updateTooltipFromSavedRange = () => {
+      viewportUpdateFrameRef.current = null;
+      const savedRange = savedRangeRef.current;
+      if (!savedRange) {
+        hideTooltip();
+        return;
+      }
+
+      const box = getRangeSelectionBox(savedRange);
+      const viewport = viewportSize();
+      if (!box || !isSelectionBoxVisible(box, viewport)) {
+        hideTooltip();
+        return;
+      }
+
+      setSelection((current) =>
+        current
+          ? {
+              ...current,
+              box,
+            }
+          : current,
+      );
+    };
+
+    const scheduleViewportUpdate = (event: Event) => {
+      if (
+        isSnippetVaultUiEvent(event) ||
+        viewportUpdateFrameRef.current !== null
+      ) {
+        return;
+      }
+
+      viewportUpdateFrameRef.current = window.requestAnimationFrame(
+        updateTooltipFromSavedRange,
+      );
+    };
+
     const updateSelection = (event: Event) => {
       if (uiPointerActiveRef.current) {
         uiPointerActiveRef.current = false;
@@ -89,6 +151,15 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         return;
       }
 
+      // Capture the range before the RAF. Tooltip controls may receive focus
+      // before the deferred snapshot is read and collapse the native selection.
+      const currentSelection = window.getSelection();
+      if (currentSelection && !currentSelection.isCollapsed) {
+        const savedRange = currentSelection.getRangeAt(0).cloneRange();
+        savedRangeRef.current = savedRange;
+        showCapturedSelectionHighlight(savedRange);
+      }
+
       window.requestAnimationFrame(() => {
         const snapshot = readSelectionSnapshot();
         if (!snapshot) {
@@ -96,9 +167,7 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
           return;
         }
 
-        if (!labelsRequestedRef.current) {
-          void loadLabels();
-        }
+        void loadOptions();
         setSelection(snapshot);
         resetForm();
         setPosition(
@@ -116,23 +185,34 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         hideTooltip();
       }
     };
-    const handleViewportChange = () => hideTooltip();
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (isKeyboardSelectionEvent(event)) {
+        updateSelection(event);
+      }
+    };
 
     document.addEventListener("pointerup", updateSelection, true);
-    document.addEventListener("keyup", updateSelection, true);
+    document.addEventListener("keyup", handleKeyUp, true);
     document.addEventListener("keydown", handleKeyDown, true);
-    window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("scroll", handleViewportChange, true);
+    window.addEventListener("resize", scheduleViewportUpdate);
+    window.addEventListener("scroll", scheduleViewportUpdate, true);
 
     return () => {
       document.removeEventListener("pointerup", updateSelection, true);
-      document.removeEventListener("keyup", updateSelection, true);
+      document.removeEventListener("keyup", handleKeyUp, true);
       document.removeEventListener("keydown", handleKeyDown, true);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("scroll", handleViewportChange, true);
+      window.removeEventListener("resize", scheduleViewportUpdate);
+      window.removeEventListener("scroll", scheduleViewportUpdate, true);
+      savedRangeRef.current = null;
+      clearCapturedSelectionHighlight();
       clearHideTimer();
+      clearClosingTimer();
+      if (viewportUpdateFrameRef.current !== null) {
+        window.cancelAnimationFrame(viewportUpdateFrameRef.current);
+        viewportUpdateFrameRef.current = null;
+      }
     };
-  }, []);
+  }, [t]);
 
   useLayoutEffect(() => {
     if (!selection || !tooltipRef.current) {
@@ -147,33 +227,55 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         viewportSize(),
       ),
     );
+    setReady(true);
   }, [
     creatingLabel,
-    environment,
+    contextId,
+    labelsExpanded,
     labels.length,
     labelsLoading,
     saving,
-    selectedLabelId,
+    selectedLabelIds,
     selection,
+    locale,
   ]);
 
-  async function loadLabels() {
-    labelsRequestedRef.current = true;
+  async function loadOptions() {
     setLabelsLoading(true);
-    const response = await sendExtensionMessage<LabelListData>({
-      type: MESSAGE_TYPE.getLabels,
-    });
+    const [labelResponse, contextResponse] = await Promise.all([
+      sendExtensionMessage<LabelListData>({
+        type: MESSAGE_TYPE.getLabels,
+      }),
+      sendExtensionMessage<ContextPresetListData>({
+        type: MESSAGE_TYPE.getContextPresets,
+      }),
+    ]);
     setLabelsLoading(false);
 
-    if (!response.ok) {
-      labelsRequestedRef.current = false;
-      toast.error("标签加载失败", {
-        description: response.error.message,
+    if (!labelResponse.ok) {
+      toast.error(t("tooltip.labelLoadFailed"), {
+        description: labelResponse.error.message,
       });
-      return;
+    } else {
+      setLabels(labelResponse.data.labels);
     }
 
-    setLabels(response.data.labels);
+    if (!contextResponse.ok) {
+      setContexts([]);
+      toast.error(t("tooltip.contextLoadFailed"), {
+        description: contextResponse.error.message,
+      });
+    } else {
+      setContexts(contextResponse.data.contextPresets);
+      setContextId((current) =>
+        current &&
+        contextResponse.data.contextPresets.some(
+          (context) => context.id === current,
+        )
+          ? current
+          : undefined,
+      );
+    }
   }
 
   async function createAndSelectLabel() {
@@ -183,16 +285,20 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
 
     const name = labelInput.trim();
     if (!name) {
-      toast.error("请输入标签名称");
+      toast.error(t("tooltip.labelRequired"));
       return;
     }
 
-    const existing = findLabelByName(labels, name);
+    const existing = findLabelByName(labels, name, locale);
     if (existing) {
-      selectLabel(existing);
+      addLabelToSelection(existing);
       setLabels((current) => promoteLabel(current, existing));
       setLabelInput("");
-      toast.success(`已选中「${existing.name}」`);
+      toast.success(
+        t("tooltip.labelSelected", [
+          getLocalizedLabelName(existing.id, existing.name, locale),
+        ]),
+      );
       return;
     }
 
@@ -204,19 +310,27 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
     setCreatingLabel(false);
 
     if (!response.ok) {
-      toast.error("标签保存失败", {
+      toast.error(t("tooltip.labelSaveFailed"), {
         description: response.error.message,
       });
+      focusLabelInput();
       return;
     }
 
     const { label, created } = response.data;
     setLabels((current) => promoteLabel(current, label));
-    setSelectedLabelId(label.id);
+    addLabelToSelection(label);
     setLabelInput("");
     toast.success(
-      created ? `已创建并选中「${label.name}」` : `已选中「${label.name}」`,
+      created
+        ? t("tooltip.labelCreatedSelected", [
+            getLocalizedLabelName(label.id, label.name, locale),
+          ])
+        : t("tooltip.labelSelected", [
+            getLocalizedLabelName(label.id, label.name, locale),
+          ]),
     );
+    focusLabelInput();
   }
 
   function handleLabelInputKeyDown(
@@ -230,77 +344,111 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
     void createAndSelectLabel();
   }
 
-  function selectLabel(label: LabelSummary) {
-    setSelectedLabelId(label.id);
+  function addLabelToSelection(label: LabelSummary) {
+    setSelectedLabelIds((current) =>
+      current.includes(label.id) ? current : [...current, label.id],
+    );
+  }
+
+  function toggleLabelSelection(label: LabelSummary) {
+    setSelectedLabelIds((current) =>
+      current.includes(label.id)
+        ? current.filter((labelId) => labelId !== label.id)
+        : [...current, label.id],
+    );
+  }
+
+  function focusLabelInput() {
+    window.requestAnimationFrame(() => {
+      labelInputRef.current?.focus({ preventScroll: true });
+    });
   }
 
   async function saveSelection() {
     if (!selection || saving || creatingLabel) {
       return;
     }
-    if (!selectedLabelId) {
-      toast.error("请先选择或输入一个标签");
+    if (selectedLabelIds.length === 0) {
+      toast.error(t("tooltip.selectLabelFirst"));
       return;
     }
 
-    const environmentOption = ENVIRONMENT_OPTIONS.find(
-      (option) => option.value === environment,
-    );
     setSaving(true);
     const response = await sendExtensionMessage<SaveSelectionData>({
       type: MESSAGE_TYPE.saveSelection,
       payload: {
         content: selection.markdown,
-        labelId: selectedLabelId,
+        labelIds: selectedLabelIds,
         temporary: false,
-        ...(environmentOption ? { context: environmentOption.context } : {}),
+        ...(contextId ? { contextId } : {}),
         ...(document.title ? { sourceTitle: document.title } : {}),
       },
     });
     setSaving(false);
 
     if (!response.ok) {
-      toast.error("保存失败", {
+      toast.error(t("tooltip.saveFailed"), {
         description: response.error.message,
       });
       return;
     }
 
+    setSaved(true);
+
     const statusMessages = [
-      environmentOption ? `环境：${environmentOption.label}` : null,
-      response.data.searchStatus === "rebuild-required"
-        ? "搜索索引将在下次启动时重建"
+      contextId
+        ? t("tooltip.statusContext", [
+            contexts.find((context) => context.id === contextId)?.name ??
+              contextId,
+          ])
         : null,
-      response.data.labelStatus === "stale" ? "标签排序稍后更新" : null,
+      response.data.searchStatus === "rebuild-required"
+        ? t("tooltip.indexRebuild")
+        : null,
+      response.data.labelStatus === "stale"
+        ? t("tooltip.labelOrderStale")
+        : null,
     ].filter((message): message is string => message !== null);
 
-    toast.success("已保存", {
+    toast.success(t("tooltip.saved"), {
       ...(statusMessages.length > 0
         ? { description: statusMessages.join(" · ") }
         : {}),
     });
-    const selectedLabel = labels.find((label) => label.id === selectedLabelId);
-    if (selectedLabel) {
-      setLabels((current) => promoteLabel(current, selectedLabel));
-    }
+    setLabels((current) => promoteLabels(current, selectedLabelIds));
     window.getSelection()?.removeAllRanges();
+    savedRangeRef.current = null;
     clearHideTimer();
     hideTimerRef.current = window.setTimeout(hideTooltip, 400);
   }
 
   function resetForm() {
-    setSelectedLabelId(undefined);
+    setSelectedLabelIds([]);
     setLabelInput("");
-    setEnvironment(undefined);
+    setContextId(undefined);
     setCreatingLabel(false);
     setSaving(false);
+    setLabelsExpanded(false);
+    setClosing(false);
+    setSaved(false);
+    setReady(false);
+    clearClosingTimer();
   }
 
   function hideTooltip() {
-    setSelection(null);
-    setPosition(null);
-    resetForm();
     clearHideTimer();
+    if (closingTimerRef.current !== null) {
+      return;
+    }
+    savedRangeRef.current = null;
+    clearCapturedSelectionHighlight();
+    setClosing(true);
+    closingTimerRef.current = window.setTimeout(() => {
+      setSelection(null);
+      setPosition(null);
+      closingTimerRef.current = null;
+      resetForm();
+    }, CLOSING_ANIMATION_MS);
   }
 
   function clearHideTimer() {
@@ -310,29 +458,58 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
     }
   }
 
-  if (!selection || !position) {
+  function clearClosingTimer() {
+    if (closingTimerRef.current !== null) {
+      window.clearTimeout(closingTimerRef.current);
+      closingTimerRef.current = null;
+    }
+  }
+
+  if ((!selection && !closing) || !position) {
     return null;
   }
 
   const busy = creatingLabel || labelsLoading || saving;
-  const visibleLabels = labels.slice(0, MAX_VISIBLE_LABELS);
+  const maximumVisibleLabels =
+    window.innerWidth < COMPACT_VIEWPORT_WIDTH
+      ? COMPACT_MAX_VISIBLE_LABELS
+      : window.innerWidth <
+          ESTIMATED_TOOLTIP_SIZE.width + VIEWPORT_GUTTER
+        ? NARROW_MAX_VISIBLE_LABELS
+        : MAX_VISIBLE_LABELS;
+  const collapsedLabels = getVisibleLabels(
+    labels,
+    selectedLabelIds,
+    maximumVisibleLabels,
+  );
+  const displayedLabels = labelsExpanded
+    ? labels
+    : collapsedLabels;
+  const hiddenLabelCount = Math.max(
+    0,
+    labels.length - collapsedLabels.length,
+  );
+  const selectedLabelIdSet = new Set(selectedLabelIds);
   const style: CSSProperties = {
     left: position.left,
     top: position.top,
-    maxWidth: Math.min(
-      TOOLTIP_MAX_WIDTH,
-      Math.max(0, window.innerWidth - VIEWPORT_GUTTER),
-    ),
+    maxWidth: Math.max(0, window.innerWidth - VIEWPORT_GUTTER),
   };
 
   return (
     <div
       ref={tooltipRef}
       data-snippet-vault-ui="true"
-      className="pointer-events-auto fixed z-50 w-max rounded-full border bg-popover p-2 font-sans text-popover-foreground shadow-md outline-none motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+      className={cn(
+        "pointer-events-auto fixed z-50 isolate w-2xl rounded-xl border border-foreground/20 bg-popover p-3 font-sans text-popover-foreground shadow-2xl ring-4 ring-foreground/10 outline-none",
+        closing
+          ? "motion-safe:animate-out motion-safe:fade-out-0 motion-safe:zoom-out-95"
+          : "motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95",
+        !ready && !closing && "invisible",
+      )}
       style={style}
       role="toolbar"
-      aria-label="保存所选文本"
+      aria-label={t("tooltip.toolbarLabel")}
       data-placement={position.placement}
       onPointerDownCapture={() => {
         uiPointerActiveRef.current = true;
@@ -341,107 +518,225 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         uiPointerActiveRef.current = false;
       }}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1">
-          {labelsLoading ? (
-            <LoaderCircle
-              className="size-3.5 animate-spin text-muted-foreground"
-              aria-label="正在加载标签"
-            />
-          ) : null}
+      <div
+        className={
+          labelsExpanded
+            ? "-m-1 flex flex-wrap content-start items-center gap-1 p-1"
+            : "flex flex-wrap content-start items-center gap-1"
+        }
+        role="group"
+        aria-label={t("tooltip.labelGroup")}
+        onKeyDown={handleLabelGroupKeyDown}
+      >
+        <span className="inline-flex h-7 shrink-0 basis-full items-center px-1 text-sm text-muted-foreground">
+          {t("tooltip.labelPrompt")}
+        </span>
 
-          {visibleLabels.map((label, index) => (
+        {labelsExpanded && hiddenLabelCount > 0 ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            aria-expanded="true"
+            onClick={() => setLabelsExpanded(false)}
+            className="text-muted-foreground"
+          >
+            <ChevronUp aria-hidden="true" />
+            {t("tooltip.collapseLabels")}
+          </Button>
+        ) : null}
+
+        {labelsLoading ? (
+          <LoaderCircle
+            className="size-3.5 animate-spin text-muted-foreground"
+            aria-label={t("tooltip.loadingLabels")}
+          />
+        ) : null}
+
+        {!labelsLoading && labels.length === 0 ? (
+          <span className="text-xs text-muted-foreground italic">
+            {t("tooltip.noLabelsHint")}
+          </span>
+        ) : null}
+
+        {displayedLabels.map((label) => {
+          const selected = selectedLabelIdSet.has(label.id);
+          return (
             <Badge
               key={label.id}
               asChild
-              variant={selectedLabelId === label.id ? "default" : "outline"}
-              className={
-                index >= 2
-                  ? "hidden h-6 max-w-24 rounded-md text-sm disabled:pointer-events-none disabled:opacity-50 sm:inline-flex"
-                  : "h-6 max-w-24 rounded-md text-sm disabled:pointer-events-none disabled:opacity-50"
-              }
+              variant={selected ? "default" : "outline"}
+              className="h-7 max-w-36 rounded-md text-sm disabled:pointer-events-none disabled:opacity-50"
             >
               <button
                 type="button"
                 disabled={busy}
-                aria-pressed={selectedLabelId === label.id}
-                onClick={() => selectLabel(label)}
+                aria-pressed={selected}
+                title={getLocalizedLabelName(label.id, label.name, locale)}
+                onClick={() => toggleLabelSelection(label)}
               >
-                <span className="truncate">{label.name}</span>
+                {selected ? (
+                  <Check className="size-3" aria-hidden="true" />
+                ) : null}
+                <span className="truncate">
+                  {getLocalizedLabelName(label.id, label.name, locale)}
+                </span>
               </button>
             </Badge>
-          ))}
+          );
+        })}
 
+        {!labelsExpanded && hiddenLabelCount > 0 ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            aria-expanded="false"
+            onClick={() => setLabelsExpanded(true)}
+            className="text-muted-foreground"
+          >
+            <ChevronDown aria-hidden="true" />
+            {t("tooltip.expandLabels", [hiddenLabelCount])}
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+        <div className="relative min-w-32 flex-1 basis-28">
           <Input
-            className="w-24 text-xs md:text-xs"
+            ref={labelInputRef}
+            className="text-sm md:text-sm"
             value={labelInput}
             onChange={(event) => setLabelInput(event.target.value)}
             onKeyDown={handleLabelInputKeyDown}
             maxLength={MAX_LABEL_NAME_LENGTH}
-            placeholder="+ 标签"
-            aria-label="输入标签，按回车创建并选中"
+            placeholder={t("tooltip.labelPlaceholder")}
+            aria-label={t("tooltip.labelInputLabel")}
             disabled={busy}
           />
+          {creatingLabel ? (
+            <LoaderCircle
+              className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+          ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1 border-l border-border pl-2">
-          <Select
-            value={environment ?? ""}
-            onValueChange={(value) =>
-              setEnvironment(
-                value === "none" ? undefined : (value as EnvironmentValue),
-              )
-            }
-            disabled={busy}
+        <Select
+          value={contextId ?? ""}
+          onValueChange={(value) =>
+            setContextId(value === "none" ? undefined : value)
+          }
+          disabled={busy}
+        >
+          <SelectTrigger
+            className={cn("shrink-0", contextId && "ring-1 ring-primary/30")}
+            aria-label={t("tooltip.environmentSelectLabel")}
           >
-            <SelectTrigger aria-label="选择环境；该值作为上下文保存并参与检索">
-              <SelectValue placeholder="环境" />
-            </SelectTrigger>
-            <SelectContent
-              portalContainer={portalContainer}
-              position="popper"
-              align="end"
-              data-snippet-vault-ui="true"
-            >
-              <SelectItem value="none">不指定</SelectItem>
-              {ENVIRONMENT_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <SelectValue placeholder={t("tooltip.environmentPlaceholder")} />
+          </SelectTrigger>
+          <SelectContent
+            portalContainer={tooltipRef.current ?? portalContainer}
+            position="popper"
+            align="end"
+            data-snippet-vault-ui="true"
+          >
+            <SelectItem value="none">
+              {t("tooltip.environmentNone")}
+            </SelectItem>
+            {contexts.map((context) => (
+              <SelectItem key={context.id} value={context.id}>
+                <span className="flex min-w-0 items-center gap-2">
+                  <ContextMarker color={context.color} />
+                  <span className="truncate">{context.name}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-          <Button
-            type="button"
-            size="sm"
-            disabled={busy}
-            aria-busy={saving}
-            onClick={() => void saveSelection()}
-          >
-            {saving ? (
-              <LoaderCircle className="animate-spin" aria-hidden="true" />
-            ) : (
-              <Check className="size-3.5" aria-hidden="true" />
-            )}
-            保存
-          </Button>
-        </div>
+        <Button
+          type="button"
+          disabled={busy || selectedLabelIds.length === 0 || saved}
+          aria-busy={saving}
+          variant={saved ? "outline" : "default"}
+          className={cn(saved && "border-primary/30 text-primary")}
+          onClick={() => void saveSelection()}
+        >
+          {saving ? (
+            <LoaderCircle className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Check
+              className={cn("size-3.5", saved && "text-primary")}
+              aria-hidden="true"
+            />
+          )}
+          {saved ? t("tooltip.saved") : t("tooltip.save")}
+        </Button>
       </div>
     </div>
   );
 }
 
+function handleLabelGroupKeyDown(
+  event: ReactKeyboardEvent<HTMLDivElement>,
+) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return;
+  }
+
+  const buttons =
+    event.currentTarget.querySelectorAll<HTMLButtonElement>(
+      "button[aria-pressed]",
+    );
+  if (buttons.length === 0) {
+    return;
+  }
+
+  const currentIndex = Array.from(buttons).indexOf(
+    document.activeElement as HTMLButtonElement,
+  );
+  const nextIndex =
+    event.key === "ArrowRight"
+      ? (currentIndex + 1) % buttons.length
+      : (currentIndex - 1 + buttons.length) % buttons.length;
+
+  buttons[nextIndex]?.focus();
+  event.preventDefault();
+}
+
 function findLabelByName(
   labels: readonly LabelSummary[],
   name: string,
+  locale: SupportedLocale,
 ): LabelSummary | undefined {
+  const collator = new Intl.Collator(toIntlLocale(locale), {
+    sensitivity: "accent",
+  });
   return labels.find(
     (label) =>
-      label.name.localeCompare(name, undefined, {
-        sensitivity: "accent",
-      }) === 0,
+      collator.compare(
+        getLocalizedLabelName(label.id, label.name, locale),
+        name,
+      ) === 0,
   );
+}
+
+function promoteLabels(
+  labels: readonly LabelSummary[],
+  selectedLabelIds: readonly string[],
+): LabelSummary[] {
+  const labelById = new Map(labels.map((label) => [label.id, label]));
+  const selectedIdSet = new Set(selectedLabelIds);
+  return [
+    ...selectedLabelIds.flatMap((labelId) => {
+      const label = labelById.get(labelId);
+      return label ? [label] : [];
+    }),
+    ...labels.filter((label) => !selectedIdSet.has(label.id)),
+  ];
 }
 
 function promoteLabel(
@@ -449,6 +744,14 @@ function promoteLabel(
   selected: LabelSummary,
 ): LabelSummary[] {
   return [selected, ...labels.filter((label) => label.id !== selected.id)];
+}
+
+function getVisibleLabels(
+  labels: readonly LabelSummary[],
+  selectedLabelIds: readonly string[],
+  maximum: number,
+): LabelSummary[] {
+  return promoteLabels(labels, selectedLabelIds).slice(0, maximum);
 }
 
 function viewportSize() {

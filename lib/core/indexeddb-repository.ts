@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import {
+  type ConditionalMutationOutcome,
+  type ConditionalMutationResult,
+  type ContextPreset,
   SEARCH_SCHEMA_VERSION,
   STORAGE_SCHEMA_VERSION,
   type ItemReference,
@@ -14,10 +17,11 @@ import {
 } from './model';
 import type { VaultRepository } from './repository';
 
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const META_KEY = 'storage';
 
 const STORE = {
+  contextPresets: 'context_presets',
   labels: 'labels',
   meta: 'meta',
   vaultItems: 'vault_items',
@@ -186,9 +190,77 @@ export class IndexedDbVaultRepository implements VaultRepository {
     });
   }
 
+  putVaultItemIfUnchanged(
+    item: VaultItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationResult> {
+    return this.mutate([STORE.vaultItems], async (tx) => {
+      const outcome = await this.putItemIfUnchanged(
+        tx.objectStore(STORE.vaultItems),
+        item,
+        expectedUpdatedAt,
+      );
+      return {
+        changed: outcome === 'updated',
+        value: outcome,
+      };
+    }).then(({ value, ...mutation }) => ({
+      ...mutation,
+      outcome: value,
+    }));
+  }
+
+  putWorkspaceItemIfUnchanged(
+    item: WorkspaceItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationResult> {
+    return this.mutate([STORE.workspaceItems], async (tx) => {
+      const outcome = await this.putItemIfUnchanged(
+        tx.objectStore(STORE.workspaceItems),
+        item,
+        expectedUpdatedAt,
+      );
+      return {
+        changed: outcome === 'updated',
+        value: outcome,
+      };
+    }).then(({ value, ...mutation }) => ({
+      ...mutation,
+      outcome: value,
+    }));
+  }
+
   putLabel(label: Label): Promise<MutationResult> {
     return this.mutate([STORE.labels], async (tx) => {
       tx.objectStore(STORE.labels).put(label);
+      return { changed: true, value: undefined };
+    });
+  }
+
+  putContextPreset(preset: ContextPreset): Promise<MutationResult> {
+    return this.mutate([STORE.contextPresets], async (tx) => {
+      tx.objectStore(STORE.contextPresets).put(preset);
+      return { changed: true, value: undefined };
+    });
+  }
+
+  touchLabelUsage(id: string, time: number): Promise<MutationResult> {
+    return this.mutate([STORE.labels], async (tx) => {
+      const store = tx.objectStore(STORE.labels);
+      const existing = await requestToPromise(
+        store.get(id) as IDBRequest<Label | undefined>,
+      );
+
+      if (!existing) {
+        return { changed: false, value: undefined };
+      }
+
+      store.put({
+        ...existing,
+        usageCount: existing.usageCount + 1,
+        lastUsedAt: time,
+        updatedAt: time,
+      });
       return { changed: true, value: undefined };
     });
   }
@@ -206,20 +278,6 @@ export class IndexedDbVaultRepository implements VaultRepository {
       }
 
       store.delete(reference.id);
-      return { changed: true, value: undefined };
-    });
-  }
-
-  deleteLabel(id: string): Promise<MutationResult> {
-    return this.mutate([STORE.labels], async (tx) => {
-      const store = tx.objectStore(STORE.labels);
-      const existing = await requestToPromise(store.get(id));
-
-      if (existing === undefined) {
-        return { changed: false, value: undefined };
-      }
-
-      store.delete(id);
       return { changed: true, value: undefined };
     });
   }
@@ -352,12 +410,31 @@ export class IndexedDbVaultRepository implements VaultRepository {
     );
   }
 
-  async listLabels(): Promise<Label[]> {
+  async listLabels(
+    options: { includeArchived?: boolean } = {},
+  ): Promise<Label[]> {
     const database = await this.getDatabase();
     return runTransaction(database, [STORE.labels], 'readonly', async (tx) =>
-      requestToPromise(
-        tx.objectStore(STORE.labels).getAll() as IDBRequest<Label[]>,
+      this.listStoreRecords<Label>(
+        tx.objectStore(STORE.labels),
+        options.includeArchived ?? false,
       ),
+    );
+  }
+
+  async listContextPresets(
+    options: { includeArchived?: boolean } = {},
+  ): Promise<ContextPreset[]> {
+    const database = await this.getDatabase();
+    return runTransaction(
+      database,
+      [STORE.contextPresets],
+      'readonly',
+      async (tx) =>
+        this.listStoreRecords<ContextPreset>(
+          tx.objectStore(STORE.contextPresets),
+          options.includeArchived ?? false,
+        ),
     );
   }
 
@@ -403,6 +480,9 @@ export class IndexedDbVaultRepository implements VaultRepository {
       if (!database.objectStoreNames.contains(STORE.labels)) {
         database.createObjectStore(STORE.labels, { keyPath: 'id' });
       }
+      if (!database.objectStoreNames.contains(STORE.contextPresets)) {
+        database.createObjectStore(STORE.contextPresets, { keyPath: 'id' });
+      }
       if (!database.objectStoreNames.contains(STORE.meta)) {
         const metaStore = database.createObjectStore(STORE.meta, {
           keyPath: 'key',
@@ -420,9 +500,22 @@ export class IndexedDbVaultRepository implements VaultRepository {
   private async ensureMeta(database: IDBDatabase): Promise<void> {
     await runTransaction(database, [STORE.meta], 'readwrite', async (tx) => {
       const store = tx.objectStore(STORE.meta);
-      const existing = await requestToPromise(store.get(META_KEY));
+      const existing = await requestToPromise(
+        store.get(META_KEY) as IDBRequest<MetaRecord | undefined>,
+      );
       if (existing === undefined) {
         store.put(toMetaRecord(DEFAULT_META));
+        return;
+      }
+
+      const current = fromMetaRecord(existing);
+      if (current.schemaVersion !== STORAGE_SCHEMA_VERSION) {
+        store.put(
+          toMetaRecord({
+            ...current,
+            schemaVersion: STORAGE_SCHEMA_VERSION,
+          }),
+        );
       }
     });
   }
@@ -496,5 +589,40 @@ export class IndexedDbVaultRepository implements VaultRepository {
         cursor.continue();
       };
     });
+  }
+
+  private async listStoreRecords<
+    T extends { archivedAt?: number },
+  >(
+    store: IDBObjectStore,
+    includeArchived: boolean,
+  ): Promise<T[]> {
+    const records = await requestToPromise(store.getAll() as IDBRequest<T[]>);
+    return includeArchived
+      ? records
+      : records.filter((record) => record.archivedAt === undefined);
+  }
+
+  private async putItemIfUnchanged<
+    T extends { id: string; updatedAt: number },
+  >(
+    store: IDBObjectStore,
+    item: T,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationOutcome> {
+    const existing = await requestToPromise(
+      store.get(item.id) as IDBRequest<T | undefined>,
+    );
+
+    if (!existing) {
+      return 'not-found';
+    }
+
+    if (existing.updatedAt !== expectedUpdatedAt) {
+      return 'conflict';
+    }
+
+    store.put(item);
+    return 'updated';
   }
 }

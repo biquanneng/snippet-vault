@@ -12,10 +12,9 @@ export interface VaultDomainGroup {
   items: VaultSearchItem[];
 }
 
-const UNKNOWN_DOMAIN = '未记录来源';
-
 export function groupVaultItemsByDomain(
   items: SearchPanelItem[],
+  unknownDomain: string,
 ): VaultDomainGroup[] {
   const groups = new Map<string, VaultSearchItem[]>();
 
@@ -24,7 +23,7 @@ export function groupVaultItemsByDomain(
       continue;
     }
 
-    const domain = item.source?.domain?.trim() || UNKNOWN_DOMAIN;
+    const domain = item.source?.domain?.trim() || unknownDomain;
     const group = groups.get(domain);
     if (group) {
       group.push(item);

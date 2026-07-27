@@ -1,20 +1,30 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import {
+  hasExtensionMessageType,
   isExtensionRequest,
   MESSAGE_TYPE,
   type ExtensionRequest,
   type ExtensionResponse,
 } from '../lib/browser/message-contract';
 import {
+  OPEN_SEARCH_SIDE_PANEL_COMMAND,
+} from '../lib/browser/side-panel-shortcut';
+import {
   VaultMessageController,
   type MessageSenderContext,
 } from '../lib/browser/vault-message-controller';
 import { createSnippetVaultService } from '../lib/core';
+import { getUiLocale, initializeLanguage } from '../lib/i18n';
+import { translate } from '../lib/i18n-catalog';
+import { requestSidePanelSearch } from '../lib/side-panel-navigation';
+import { getWorkspaceExpiryDays } from '../lib/workspace-expiry';
 
 let controller: VaultMessageController | null = null;
 
 export default defineBackground(() => {
+  void initializeLanguage();
+
   void browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((error: unknown) => {
@@ -24,8 +34,44 @@ export default defineBackground(() => {
       );
     });
 
+  browser.commands.onCommand.addListener((command, tab) => {
+    if (command !== OPEN_SEARCH_SIDE_PANEL_COMMAND) {
+      return;
+    }
+
+    if (tab?.windowId === undefined) {
+      console.error(
+        '[SnippetVault] Cannot open the search side panel without a window',
+      );
+      return;
+    }
+
+    void requestSidePanelSearch().catch((error: unknown) => {
+      console.error(
+        '[SnippetVault] Failed to route the side panel to search',
+        error,
+      );
+    });
+    void browser.sidePanel
+      .open({ windowId: tab.windowId })
+      .catch((error: unknown) => {
+        console.error(
+          '[SnippetVault] Failed to open the search side panel',
+          error,
+        );
+      });
+  });
+
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!isExtensionRequest(message)) {
+      if (hasExtensionMessageType(message)) {
+        sendResponse(
+          failure(
+            'INVALID_MESSAGE',
+            translate(getUiLocale(), 'errors.invalidRequest'),
+          ),
+        );
+      }
       return false;
     }
 
@@ -51,7 +97,13 @@ export default defineBackground(() => {
           );
         }
         sendResponse(
-          failure('INTERNAL_ERROR', '操作失败，请稍后重试。'),
+          failure(
+            'INTERNAL_ERROR',
+            translate(
+              message.locale ?? getUiLocale(),
+              'errors.internal',
+            ),
+          ),
         );
       });
     return true;
@@ -62,6 +114,7 @@ async function handleMessage(
   request: ExtensionRequest,
   sender: Browser.runtime.MessageSender,
 ): Promise<ExtensionResponse<unknown>> {
+  await initializeLanguage();
   return getController().handle(
     request,
     createSenderContext(sender),
@@ -70,8 +123,16 @@ async function handleMessage(
 
 function getController(): VaultMessageController {
   if (!controller) {
+    const service = createSnippetVaultService();
+    void service.pruneExpired().catch((error: unknown) => {
+      console.error(
+        '[SnippetVault] Failed to prune expired workspace items',
+        error,
+      );
+    });
     controller = new VaultMessageController({
-      service: createSnippetVaultService(),
+      service,
+      workspaceExpiryDaysProvider: getWorkspaceExpiryDays,
     });
   }
   return controller;
@@ -90,7 +151,7 @@ function createSenderContext(
 }
 
 function failure(
-  code: 'INTERNAL_ERROR',
+  code: 'INTERNAL_ERROR' | 'INVALID_MESSAGE',
   message: string,
 ): ExtensionResponse<never> {
   return {

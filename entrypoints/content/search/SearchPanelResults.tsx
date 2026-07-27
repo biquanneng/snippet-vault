@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
+import { useMemo } from 'react';
 import { AlertCircle, SearchX } from 'lucide-react';
 
 import {
@@ -11,8 +12,11 @@ import {
 import { Button } from '../../../components/ui/button';
 import type {
   SearchPanelData,
+  SearchPanelItem,
   SearchPanelKind,
 } from '../../../lib/browser/message-contract';
+import { toIntlLocale } from '../../../lib/i18n-catalog';
+import { useI18n } from '../../../lib/use-i18n';
 import { HighlightedText } from './HighlightedText';
 import { groupVaultItemsByDomain } from './result-groups';
 import { SearchPagination } from './SearchPagination';
@@ -23,7 +27,10 @@ interface SearchPanelResultsProps {
   error: string | null;
   kind: SearchPanelKind;
   loading: boolean;
+  portalContainer?: HTMLElement;
   query: string;
+  onDelete: (item: SearchPanelItem) => void;
+  onEdit: (item: SearchPanelItem) => void;
   onPageChange: (page: number) => void;
   onRetry: () => void;
 }
@@ -33,12 +40,18 @@ export function SearchPanelResults({
   error,
   kind,
   loading,
+  portalContainer,
   query,
+  onDelete,
+  onEdit,
   onPageChange,
   onRetry,
 }: SearchPanelResultsProps) {
+  const { t } = useI18n();
   if (loading) {
-    return <SearchResultsSkeleton />;
+    return (
+      <SearchResultsSkeleton label={t('search.results.loading')} />
+    );
   }
 
   if (error) {
@@ -46,11 +59,11 @@ export function SearchPanelResults({
       <div className="p-4">
         <Alert variant="destructive">
           <AlertCircle aria-hidden="true" />
-          <AlertTitle>检索失败</AlertTitle>
+          <AlertTitle>{t('search.results.failed')}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
           <AlertAction>
             <Button variant="outline" size="xs" onClick={onRetry}>
-              重试
+              {t('search.results.retry')}
             </Button>
           </AlertAction>
         </Alert>
@@ -69,12 +82,14 @@ export function SearchPanelResults({
           <SearchX className="size-4 text-muted-foreground" aria-hidden="true" />
         </span>
         <p className="text-sm font-medium">
-          {query ? '没有匹配结果' : '这里还没有记录'}
+          {query
+            ? t('search.results.noMatches')
+            : t('search.results.noRecords')}
         </p>
         <p className="text-xs text-muted-foreground">
           {kind === 'vault'
-            ? '保存带标签的网页选区后会出现在这里。'
-            : '临时保存的内容会在到期前显示在这里。'}
+            ? t('search.results.vaultEmpty')
+            : t('search.results.workspaceEmpty')}
         </p>
       </div>
     );
@@ -82,13 +97,26 @@ export function SearchPanelResults({
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto overscroll-contain p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2">
         {kind === 'vault' ? (
-          <VaultResults data={data} query={query} />
+          <VaultResults
+            data={data}
+            portalContainer={portalContainer}
+            query={query}
+            onDelete={onDelete}
+            onEdit={onEdit}
+          />
         ) : (
           <ul className="divide-y bg-background">
             {data.items.map((item) => (
-              <SearchResultItem key={item.id} item={item} query={query} />
+              <SearchResultItem
+                key={item.id}
+                item={item}
+                portalContainer={portalContainer}
+                query={query}
+                onDelete={onDelete}
+                onEdit={onEdit}
+              />
             ))}
           </ul>
         )}
@@ -105,12 +133,26 @@ export function SearchPanelResults({
 
 function VaultResults({
   data,
+  portalContainer,
   query,
+  onDelete,
+  onEdit,
 }: {
   data: SearchPanelData;
+  portalContainer?: HTMLElement;
   query: string;
+  onDelete: (item: SearchPanelItem) => void;
+  onEdit: (item: SearchPanelItem) => void;
 }) {
-  const groups = groupVaultItemsByDomain(data.items);
+  const { locale, t } = useI18n();
+  const numberFormatter = useMemo(
+    () => new Intl.NumberFormat(toIntlLocale(locale)),
+    [locale],
+  );
+  const groups = groupVaultItemsByDomain(
+    data.items,
+    t('search.results.unknownSource'),
+  );
 
   return (
     <div className="space-y-5">
@@ -124,12 +166,23 @@ function VaultResults({
               <HighlightedText text={group.domain} query={query} />
             </h2>
             <span className="text-xs tabular-nums text-muted-foreground">
-              {group.items.length} 条
+              {t(
+                'search.results.groupCount',
+                [numberFormatter.format(group.items.length)],
+                group.items.length,
+              )}
             </span>
           </div>
           <ul className="divide-y bg-background">
             {group.items.map((item) => (
-              <SearchResultItem key={item.id} item={item} query={query} />
+              <SearchResultItem
+                key={item.id}
+                item={item}
+                portalContainer={portalContainer}
+                query={query}
+                onDelete={onDelete}
+                onEdit={onEdit}
+              />
             ))}
           </ul>
         </section>
@@ -138,11 +191,11 @@ function VaultResults({
   );
 }
 
-function SearchResultsSkeleton() {
+function SearchResultsSkeleton({ label }: { label: string }) {
   return (
     <div
       className="flex-1 space-y-6 overflow-hidden p-3"
-      aria-label="正在检索"
+      aria-label={label}
       aria-live="polite"
     >
       {[0, 1].map((group) => (

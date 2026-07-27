@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import {
+  type ConditionalMutationReceipt,
+  type ConditionalMutationResult,
+  type ContextPreset,
   SEARCH_SCHEMA_VERSION,
   type ItemKind,
   type ItemReference,
@@ -82,6 +85,42 @@ export class SnippetVaultService {
     });
   }
 
+  saveVaultItemIfUnchanged(
+    item: VaultItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.putVaultItemIfUnchanged(
+        item,
+        expectedUpdatedAt,
+      );
+      return this.synchronizeConditionalRecordMutation(
+        mutation,
+        indexReady,
+        { kind: 'vault', item },
+      );
+    });
+  }
+
+  saveWorkspaceItemIfUnchanged(
+    item: WorkspaceItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.putWorkspaceItemIfUnchanged(
+        item,
+        expectedUpdatedAt,
+      );
+      return this.synchronizeConditionalRecordMutation(
+        mutation,
+        indexReady,
+        { kind: 'workspace', item },
+      );
+    });
+  }
+
   saveLabel(label: Label): Promise<MutationReceipt> {
     return this.enqueueOperation(async () => {
       await this.tryEnsureReady();
@@ -90,11 +129,19 @@ export class SnippetVaultService {
     });
   }
 
-  deleteLabel(id: string): Promise<MutationReceipt> {
+  saveContextPreset(preset: ContextPreset): Promise<MutationReceipt> {
     return this.enqueueOperation(async () => {
-      await this.tryEnsureReady();
-      const mutation = await this.repository.deleteLabel(id);
-      return this.rebuildAfterMutation(mutation);
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.putContextPreset(preset);
+      return this.synchronizeIndexNeutralMutation(mutation, indexReady);
+    });
+  }
+
+  touchLabelUsage(id: string, time: number): Promise<MutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.touchLabelUsage(id, time);
+      return this.synchronizeIndexNeutralMutation(mutation, indexReady);
     });
   }
 
@@ -177,8 +224,14 @@ export class SnippetVaultService {
     return this.repository.getItem(reference);
   }
 
-  listLabels(): Promise<Label[]> {
-    return this.repository.listLabels();
+  listLabels(options?: { includeArchived?: boolean }): Promise<Label[]> {
+    return this.repository.listLabels(options);
+  }
+
+  listContextPresets(
+    options?: { includeArchived?: boolean },
+  ): Promise<ContextPreset[]> {
+    return this.repository.listContextPresets(options);
   }
 
   search(
@@ -335,6 +388,57 @@ export class SnippetVaultService {
     }
   }
 
+  private async synchronizeConditionalRecordMutation(
+    mutation: ConditionalMutationResult,
+    indexReady: boolean,
+    record: StoredRecord,
+  ): Promise<ConditionalMutationReceipt> {
+    if (!mutation.changed) {
+      return this.toConditionalReceipt(mutation, 'synchronized');
+    }
+    if (!indexReady) {
+      return this.toConditionalReceipt(mutation, 'rebuild-required');
+    }
+
+    try {
+      const labels = await this.getLabelNames();
+      return await this.commitConditionalIndexMutation(mutation, () => {
+        this.searchIndex.upsert(createSearchDocument(record, labels));
+      });
+    } catch {
+      this.readyPromise = null;
+      return this.toConditionalReceipt(mutation, 'rebuild-required');
+    }
+  }
+
+  private async synchronizeIndexNeutralMutation(
+    mutation: MutationResult,
+    indexReady: boolean,
+  ): Promise<MutationReceipt> {
+    if (!mutation.changed) {
+      return this.toReceipt(mutation, 'synchronized');
+    }
+    if (!indexReady) {
+      return this.toReceipt(mutation, 'rebuild-required');
+    }
+
+    try {
+      const marked = await this.repository.markSearchIndexed(
+        mutation.dataRevision,
+        SEARCH_SCHEMA_VERSION,
+        mutation.dataRevision - 1,
+      );
+      if (!marked) {
+        this.readyPromise = null;
+        return this.toReceipt(mutation, 'rebuild-required');
+      }
+      return this.toReceipt(mutation, 'synchronized');
+    } catch {
+      this.readyPromise = null;
+      return this.toReceipt(mutation, 'rebuild-required');
+    }
+  }
+
   private async rebuildAfterMutation(
     mutation: MutationResult,
   ): Promise<MutationReceipt> {
@@ -376,8 +480,33 @@ export class SnippetVaultService {
     }
   }
 
+  private async commitConditionalIndexMutation(
+    mutation: ConditionalMutationResult,
+    apply: () => void,
+  ): Promise<ConditionalMutationReceipt> {
+    try {
+      apply();
+      await this.searchIndex.commit();
+      const marked = await this.repository.markSearchIndexed(
+        mutation.dataRevision,
+        SEARCH_SCHEMA_VERSION,
+        mutation.dataRevision - 1,
+      );
+      if (!marked) {
+        this.readyPromise = null;
+        return this.toConditionalReceipt(mutation, 'rebuild-required');
+      }
+      return this.toConditionalReceipt(mutation, 'synchronized');
+    } catch {
+      this.readyPromise = null;
+      return this.toConditionalReceipt(mutation, 'rebuild-required');
+    }
+  }
+
   private async getLabelNames(): Promise<Map<string, string>> {
-    const labels = await this.repository.listLabels();
+    const labels = await this.repository.listLabels({
+      includeArchived: true,
+    });
     return new Map(labels.map((label) => [label.id, label.name]));
   }
 
@@ -460,6 +589,16 @@ export class SnippetVaultService {
     mutation: MutationResult,
     searchStatus: MutationReceipt['searchStatus'],
   ): MutationReceipt {
+    return {
+      ...mutation,
+      searchStatus,
+    };
+  }
+
+  private toConditionalReceipt(
+    mutation: ConditionalMutationResult,
+    searchStatus: ConditionalMutationReceipt['searchStatus'],
+  ): ConditionalMutationReceipt {
     return {
       ...mutation,
       searchStatus,

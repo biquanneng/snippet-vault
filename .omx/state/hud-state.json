@@ -1,6 +1,6 @@
 {
-  "last_turn_at": "2026-07-26T10:37:24.817Z",
-  "turn_count": 51,
-  "last_progress_at": "2026-07-26T10:37:24.817Z",
-  "last_agent_output": "可以。建议不是“在 popup 里再点一次”，而是：\n\n- 点击 Chrome 工具栏中的 SnippetVault 图标，直接打开/关闭侧边栏。\n- 保留“双击 Shift”作为快速检索入口。\n- "
+  "last_turn_at": "2026-07-27T08:25:44.879Z",
+  "turn_count": 95,
+  "last_progress_at": "2026-07-27T08:25:44.879Z",
+  "last_agent_output": "已移除 Tooltip 顶部黑色装饰条，其他边框、阴影、动画和布局保持不变。\n\n- 修改：[SelectionTooltip.tsx](/Users/biqn/Workspace/wossoft/sn"
 }

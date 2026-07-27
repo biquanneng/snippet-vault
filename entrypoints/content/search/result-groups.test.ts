@@ -14,7 +14,7 @@ describe('groupVaultItemsByDomain', () => {
       vaultItem('unknown'),
     ];
 
-    expect(groupVaultItemsByDomain(items)).toEqual([
+    expect(groupVaultItemsByDomain(items, 'Unknown source')).toEqual([
       {
         domain: 'console.example.com',
         items: [items[0], items[2]],
@@ -24,7 +24,7 @@ describe('groupVaultItemsByDomain', () => {
         items: [items[1]],
       },
       {
-        domain: '未记录来源',
+        domain: 'Unknown source',
         items: [items[3]],
       },
     ]);
@@ -41,7 +41,7 @@ describe('groupVaultItemsByDomain', () => {
       expiresAt: 1_000,
     };
 
-    expect(groupVaultItemsByDomain([workspace])).toEqual([]);
+    expect(groupVaultItemsByDomain([workspace], 'Unknown source')).toEqual([]);
   });
 });
 

@@ -2,6 +2,8 @@
 
 import { Fragment, useMemo, type ReactNode } from 'react';
 
+import type { Translator } from '../../../lib/i18n-catalog';
+import { useI18n } from '../../../lib/use-i18n';
 import { HighlightedText } from './HighlightedText';
 import {
   parseMarkdown,
@@ -198,14 +200,20 @@ function MarkdownInlines({
   nodes: MarkdownInline[];
   query: string;
 }) {
+  const { t } = useI18n();
+
   return nodes.map((node, index) => (
     <Fragment key={`${node.type}-${index}`}>
-      {renderInline(node, query)}
+      {renderInline(node, query, t)}
     </Fragment>
   ));
 }
 
-function renderInline(node: MarkdownInline, query: string): ReactNode {
+function renderInline(
+  node: MarkdownInline,
+  query: string,
+  t: Translator,
+): ReactNode {
   switch (node.type) {
     case 'text':
       return <HighlightedText text={node.value} query={query} />;
@@ -237,7 +245,7 @@ function renderInline(node: MarkdownInline, query: string): ReactNode {
       );
     case 'image-alt':
       return (
-        <span aria-label="图片替代文本">
+        <span aria-label={t('search.results.imageAlt')}>
           <MarkdownInlines nodes={node.children} query={query} />
         </span>
       );

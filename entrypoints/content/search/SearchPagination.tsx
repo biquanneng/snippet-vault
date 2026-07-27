@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-import type { MouseEvent } from 'react';
+import { useMemo, type MouseEvent } from 'react';
 
 import {
   Pagination,
@@ -12,6 +12,8 @@ import {
   PaginationPrevious,
 } from '../../../components/ui/pagination';
 import type { SearchPanelPagination as PaginationData } from '../../../lib/browser/message-contract';
+import { toIntlLocale } from '../../../lib/i18n-catalog';
+import { useI18n } from '../../../lib/use-i18n';
 
 interface SearchPaginationProps {
   pagination: PaginationData;
@@ -24,6 +26,11 @@ export function SearchPagination({
   pagination,
   onPageChange,
 }: SearchPaginationProps) {
+  const { locale, t } = useI18n();
+  const numberFormatter = useMemo(
+    () => new Intl.NumberFormat(toIntlLocale(locale)),
+    [locale],
+  );
   if (pagination.total === 0) {
     return null;
   }
@@ -51,21 +58,25 @@ export function SearchPagination({
   }
 
   return (
-    <footer className="flex items-center justify-between gap-3 border-t bg-background px-3 py-2">
+    <footer className="flex shrink-0 items-center justify-between gap-3 border-t bg-background px-3 py-2">
       <p className="text-xs tabular-nums text-muted-foreground">
-        {pagination.total} 条记录
+        {t(
+          'search.pagination.total',
+          [numberFormatter.format(pagination.total)],
+          pagination.total,
+        )}
       </p>
       <Pagination
         className="mx-0 w-auto justify-end"
-        aria-label="检索结果分页"
+        aria-label={t('search.pagination.label')}
       >
         <PaginationContent>
           <PaginationItem>
             <PaginationPrevious
               href="#"
-              text="上一页"
+              text={t('search.pagination.previous')}
               size="sm"
-              aria-label="上一页"
+              aria-label={t('search.pagination.previous')}
               aria-disabled={firstPage}
               tabIndex={firstPage ? -1 : undefined}
               className={
@@ -84,10 +95,12 @@ export function SearchPagination({
                   href="#"
                   size="icon-sm"
                   isActive={token === pagination.page}
-                  aria-label={`第 ${token + 1} 页`}
+                  aria-label={t('search.pagination.page', [
+                    numberFormatter.format(token + 1),
+                  ])}
                   onClick={(event) => changePage(event, token)}
                 >
-                  {token + 1}
+                  {numberFormatter.format(token + 1)}
                 </PaginationLink>
               </PaginationItem>
             ) : (
@@ -100,9 +113,9 @@ export function SearchPagination({
           <PaginationItem>
             <PaginationNext
               href="#"
-              text="下一页"
+              text={t('search.pagination.next')}
               size="sm"
-              aria-label="下一页"
+              aria-label={t('search.pagination.next')}
               aria-disabled={lastPage}
               tabIndex={lastPage ? -1 : undefined}
               className={

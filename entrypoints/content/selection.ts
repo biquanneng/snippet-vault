@@ -54,11 +54,42 @@ export interface SelectionSnapshot {
   box: SelectionBox;
 }
 
+interface KeyboardSelectionEvent {
+  key: string;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+}
+
+const KEYBOARD_SELECTION_KEYS = new Set([
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'End',
+  'Home',
+  'PageDown',
+  'PageUp',
+]);
+
 export function normalizeSelectedText(text: string): string | null {
   if (!text.trim() || text.length > MAX_SELECTION_LENGTH) {
     return null;
   }
   return text;
+}
+
+export function isKeyboardSelectionEvent(
+  event: KeyboardSelectionEvent,
+): boolean {
+  if (
+    (event.metaKey || event.ctrlKey) &&
+    event.key.toLocaleLowerCase() === 'a'
+  ) {
+    return true;
+  }
+
+  return event.shiftKey && KEYBOARD_SELECTION_KEYS.has(event.key);
 }
 
 export function readSelectionSnapshot(
@@ -84,6 +115,18 @@ export function readSelectionSnapshot(
     return null;
   }
 
+  const box = getRangeSelectionBox(range);
+  if (!box) {
+    return null;
+  }
+
+  return {
+    markdown,
+    box,
+  };
+}
+
+export function getRangeSelectionBox(range: Range): SelectionBox | null {
   const rect = range.getBoundingClientRect();
   const fallbackRect = range.getClientRects().item(0);
   const effectiveRect = rect.width > 0 || rect.height > 0 ? rect : fallbackRect;
@@ -93,14 +136,23 @@ export function readSelectionSnapshot(
   }
 
   return {
-    markdown,
-    box: {
-      left: effectiveRect.left,
-      right: effectiveRect.right,
-      top: effectiveRect.top,
-      bottom: effectiveRect.bottom,
-    },
+    left: effectiveRect.left,
+    right: effectiveRect.right,
+    top: effectiveRect.top,
+    bottom: effectiveRect.bottom,
   };
+}
+
+export function isSelectionBoxVisible(
+  box: SelectionBox,
+  viewport: ViewportSize,
+): boolean {
+  return (
+    box.right >= 0 &&
+    box.left <= viewport.width &&
+    box.bottom >= 0 &&
+    box.top <= viewport.height
+  );
 }
 
 export function cloneRangeContentsWithContext(

@@ -38,4 +38,4 @@ web-ext.config.ts
 *.sln
 *.sw?
 
-.omx/
+.omx

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import type { ItemKind, ItemReference, StoredRecord } from './model';
+import {
+  getBuiltInLabelAliases,
+  getEnvironmentSearchAliases,
+} from '../localized-values';
 
 export const SEARCH_FIELDS = [
   'labelText',
@@ -55,14 +59,23 @@ export function createSearchDocument(
   labelNames: ReadonlyMap<string, string>,
 ): SearchDocument {
   const source = record.item.source;
+  const context = record.item.context ?? '';
   return {
     id: toSearchDocumentId({ kind: record.kind, id: record.item.id }),
     kind: record.kind,
     labelText: record.item.labelIds
-      .map((labelId) => labelNames.get(labelId))
-      .filter((name): name is string => name !== undefined)
+      .flatMap((labelId) => {
+        const storedName = labelNames.get(labelId);
+        return [
+          ...(storedName ? [storedName] : []),
+          ...getBuiltInLabelAliases(labelId),
+        ];
+      })
       .join(' '),
-    context: record.item.context ?? '',
+    context: [
+      context,
+      ...getEnvironmentSearchAliases(context),
+    ].filter(Boolean).join(' '),
     sourceTitle: source?.title ?? '',
     sourceUrl: source?.url ?? '',
     sourceDomain: source?.domain ?? '',

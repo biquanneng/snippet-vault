@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Kbd } from '../../../components/ui/kbd';
+import { useI18n } from '../../../lib/use-i18n';
 import {
   SearchPanelContent,
   type SearchPanelRequestSender,
@@ -25,6 +26,7 @@ export function SearchPanel({
   onClose,
   requestSender,
 }: SearchPanelProps) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -40,24 +42,27 @@ export function SearchPanel({
         portalContainer={portalContainer}
         showCloseButton={false}
         data-snippet-vault-ui="true"
-        className="flex min-h-80 max-h-3/4 flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:max-w-3xl"
+        className="flex h-3/4 min-h-80 flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:max-w-3xl"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           inputRef.current?.focus();
         }}
       >
-        <DialogTitle className="sr-only">检索 SnippetVault</DialogTitle>
+        <DialogTitle className="sr-only">
+          {t('search.dialog.title')}
+        </DialogTitle>
         <DialogDescription className="sr-only">
-          搜索机密记录或临时工作区内容
+          {t('search.dialog.description')}
         </DialogDescription>
 
         <SearchPanelContent
           inputRef={inputRef}
+          portalContainer={portalContainer}
           requestSender={requestSender}
           toolbarEnd={(
             <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
               <Kbd>ESC</Kbd>
-              关闭
+              {t('search.dialog.close')}
             </span>
           )}
         />

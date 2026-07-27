@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   calculateTooltipPosition,
+  getRangeSelectionBox,
+  isKeyboardSelectionEvent,
+  isSelectionBoxVisible,
   normalizeSelectedText,
 } from './selection';
 
@@ -40,4 +43,70 @@ describe('content selection helpers', () => {
       placement: 'below',
     });
   });
+
+  it('reads the current range position so the tooltip can follow page scrolling', () => {
+    const range = {
+      getBoundingClientRect: () => ({
+        left: 120,
+        right: 220,
+        top: 180,
+        bottom: 204,
+        width: 100,
+        height: 24,
+      }),
+      getClientRects: () => ({ item: () => null }),
+    } as unknown as Range;
+
+    expect(getRangeSelectionBox(range)).toEqual({
+      left: 120,
+      right: 220,
+      top: 180,
+      bottom: 204,
+    });
+  });
+
+  it('keeps a tracked selection until it leaves the viewport', () => {
+    const viewport = { width: 800, height: 600 };
+
+    expect(
+      isSelectionBoxVisible(
+        { left: 120, right: 220, top: 580, bottom: 604 },
+        viewport,
+      ),
+    ).toBe(true);
+    expect(
+      isSelectionBoxVisible(
+        { left: 120, right: 220, top: 601, bottom: 625 },
+        viewport,
+      ),
+    ).toBe(false);
+  });
+
+  it('ignores Enter while still recognizing keyboard selection gestures', () => {
+    expect(
+      isKeyboardSelectionEvent({
+        key: 'Enter',
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: false,
+      }),
+    ).toBe(false);
+    expect(
+      isKeyboardSelectionEvent({
+        key: 'ArrowRight',
+        shiftKey: true,
+        ctrlKey: false,
+        metaKey: false,
+      }),
+    ).toBe(true);
+    expect(
+      isKeyboardSelectionEvent({
+        key: 'a',
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: true,
+      }),
+    ).toBe(true);
+  });
+
 });

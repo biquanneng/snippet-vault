@@ -45,12 +45,14 @@ function AlertDialogOverlay({
 function AlertDialogContent({
   className,
   size = "default",
+  portalContainer,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
   size?: "default" | "sm"
+  portalContainer?: React.ComponentProps<typeof AlertDialogPrimitive.Portal>["container"]
 }) {
   return (
-    <AlertDialogPortal>
+    <AlertDialogPortal container={portalContainer}>
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"

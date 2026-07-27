@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IndexedDbVaultRepository } from './indexeddb-repository';
-import type { Label, VaultItem, WorkspaceItem } from './model';
+import type { ContextPreset, Label, VaultItem, WorkspaceItem } from './model';
 
 let databaseSequence = 0;
 let repository: IndexedDbVaultRepository;
@@ -21,6 +21,7 @@ const vaultItem: VaultItem = {
   content: 'production-token',
   labelIds: [label.id],
   context: 'meowdex production',
+  contextColor: 'purple',
   source: {
     title: 'Cloud console',
     url: 'https://console.example.com/projects/meowdex?tab=credentials',
@@ -38,6 +39,14 @@ const workspaceItem: WorkspaceItem = {
   createdAt: 100,
   updatedAt: 100,
   expiresAt: 1_000,
+};
+
+const contextPreset: ContextPreset = {
+  id: 'context:qa',
+  name: 'Shared QA',
+  color: 'cyan',
+  createdAt: 100,
+  updatedAt: 100,
 };
 
 beforeEach(() => {
@@ -66,6 +75,63 @@ describe('IndexedDbVaultRepository', () => {
     expect(await repository.getItem({ kind: 'vault', id: vaultItem.id })).toEqual({
       kind: 'vault',
       item: vaultItem,
+    });
+  });
+
+  it('stores context presets separately from business records and filters archived entries from active lists', async () => {
+    const archivedLabel: Label = {
+      ...label,
+      id: 'archived-label',
+      archivedAt: 200,
+    };
+    const archivedContextPreset: ContextPreset = {
+      ...contextPreset,
+      id: 'context:archived',
+      archivedAt: 200,
+    };
+
+    await repository.putLabel(label);
+    await repository.putLabel(archivedLabel);
+    await repository.putContextPreset(contextPreset);
+    await repository.putContextPreset(archivedContextPreset);
+
+    await expect(repository.listLabels()).resolves.toEqual([label]);
+    await expect(
+      repository.listLabels({ includeArchived: true }),
+    ).resolves.toEqual(
+      expect.arrayContaining([label, archivedLabel]),
+    );
+    await expect(repository.listContextPresets()).resolves.toEqual([
+      contextPreset,
+    ]);
+    await expect(
+      repository.listContextPresets({ includeArchived: true }),
+    ).resolves.toEqual(
+      expect.arrayContaining([contextPreset, archivedContextPreset]),
+    );
+  });
+
+  it('touches label usage without overwriting the stored name', async () => {
+    await repository.putLabel(label);
+    await repository.putLabel({
+      ...label,
+      name: 'Credential',
+      updatedAt: 200,
+    });
+
+    const mutation = await repository.touchLabelUsage(label.id, 300);
+    const [storedLabel] = await repository.listLabels({ includeArchived: true });
+
+    expect(mutation).toEqual({
+      changed: true,
+      dataRevision: 3,
+    });
+    expect(storedLabel).toEqual({
+      ...label,
+      name: 'Credential',
+      usageCount: 2,
+      lastUsedAt: 300,
+      updatedAt: 300,
     });
   });
 
@@ -154,4 +220,160 @@ describe('IndexedDbVaultRepository', () => {
       await repository.getItem({ kind: 'vault', id: promoted.id }),
     ).toEqual({ kind: 'vault', item: promoted });
   });
+
+  it('conditionally updates vault and workspace items only when updatedAt still matches', async () => {
+    await repository.putVaultItem(vaultItem);
+    await repository.putWorkspaceItem(workspaceItem);
+
+    const vaultSuccess = await repository.putVaultItemIfUnchanged(
+      {
+        ...vaultItem,
+        content: 'rotated-production-token',
+        updatedAt: 200,
+      },
+      100,
+    );
+    const vaultConflict = await repository.putVaultItemIfUnchanged(
+      {
+        ...vaultItem,
+        content: 'lost-update',
+        updatedAt: 300,
+      },
+      100,
+    );
+    const workspaceSuccess = await repository.putWorkspaceItemIfUnchanged(
+      {
+        ...workspaceItem,
+        content: 'temporary-value-updated',
+        updatedAt: 200,
+        expiresAt: 1_500,
+      },
+      100,
+    );
+    const workspaceMissing = await repository.putWorkspaceItemIfUnchanged(
+      {
+        ...workspaceItem,
+        id: 'missing-workspace',
+        updatedAt: 200,
+      },
+      100,
+    );
+
+    expect(vaultSuccess).toEqual({
+      changed: true,
+      dataRevision: 3,
+      outcome: 'updated',
+    });
+    expect(vaultConflict).toEqual({
+      changed: false,
+      dataRevision: 3,
+      outcome: 'conflict',
+    });
+    expect(workspaceSuccess).toEqual({
+      changed: true,
+      dataRevision: 4,
+      outcome: 'updated',
+    });
+    expect(workspaceMissing).toEqual({
+      changed: false,
+      dataRevision: 4,
+      outcome: 'not-found',
+    });
+    await expect(
+      repository.getItem({ kind: 'vault', id: vaultItem.id }),
+    ).resolves.toEqual({
+      kind: 'vault',
+      item: {
+        ...vaultItem,
+        content: 'rotated-production-token',
+        updatedAt: 200,
+      },
+    });
+    await expect(
+      repository.getItem({ kind: 'workspace', id: workspaceItem.id }),
+    ).resolves.toEqual({
+      kind: 'workspace',
+      item: {
+        ...workspaceItem,
+        content: 'temporary-value-updated',
+        updatedAt: 200,
+        expiresAt: 1_500,
+      },
+    });
+  });
+
+  it('upgrades a version 1 database to version 2 without losing records', async () => {
+    const databaseName = `snippet-vault-repository-v1-test-${databaseSequence}`;
+    await repository.destroy();
+    await createLegacyVersion1Database(databaseName);
+
+    repository = new IndexedDbVaultRepository({ databaseName });
+
+    await expect(repository.getMeta()).resolves.toMatchObject({
+      schemaVersion: 2,
+      dataRevision: 3,
+    });
+    await expect(
+      repository.getItem({ kind: 'vault', id: vaultItem.id }),
+    ).resolves.toEqual({
+      kind: 'vault',
+      item: vaultItem,
+    });
+    await expect(
+      repository.getItem({ kind: 'workspace', id: workspaceItem.id }),
+    ).resolves.toEqual({
+      kind: 'workspace',
+      item: workspaceItem,
+    });
+    await expect(repository.listLabels({ includeArchived: true })).resolves.toEqual([
+      label,
+    ]);
+    await expect(repository.listContextPresets()).resolves.toEqual([]);
+  });
 });
+
+async function createLegacyVersion1Database(databaseName: string): Promise<void> {
+  const request = indexedDB.open(databaseName, 1);
+
+  request.onupgradeneeded = () => {
+    const database = request.result;
+    const vaultStore = database.createObjectStore('vault_items', {
+      keyPath: 'id',
+    });
+    const workspaceStore = database.createObjectStore('workspace_items', {
+      keyPath: 'id',
+    });
+    workspaceStore.createIndex('expiresAt', 'expiresAt');
+    const labelStore = database.createObjectStore('labels', { keyPath: 'id' });
+    const metaStore = database.createObjectStore('meta', { keyPath: 'key' });
+    metaStore.put({
+      key: 'storage',
+      schemaVersion: 1,
+      dataRevision: 0,
+      indexedRevision: 0,
+      searchSchemaVersion: 0,
+    });
+
+    vaultStore.put(vaultItem);
+    workspaceStore.put(workspaceItem);
+    labelStore.put(label);
+    metaStore.put({
+      key: 'storage',
+      schemaVersion: 1,
+      dataRevision: 3,
+      indexedRevision: 0,
+      searchSchemaVersion: 0,
+    });
+  };
+
+  const database = await idbRequestToPromise(request);
+  database.close();
+}
+
+function idbRequestToPromise<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error('IndexedDB request failed'));
+  });
+}

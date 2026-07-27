@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { FlexSearchIndex } from './flexsearch-index';
 import { IndexedDbVaultRepository } from './indexeddb-repository';
-import type { Label, VaultItem, WorkspaceItem } from './model';
+import type {
+  ContextPreset,
+  Label,
+  VaultItem,
+  WorkspaceItem,
+} from './model';
 import type { VaultRepository } from './repository';
 import type {
   SearchDocument,
@@ -89,6 +94,81 @@ describe('SnippetVaultService', () => {
     expect(meta.indexedRevision).toBe(meta.dataRevision);
   });
 
+  it('indexes both locale aliases without changing stored labels or context', async () => {
+    const passwordLabel: Label = {
+      id: 'password',
+      name: '密码',
+      usageCount: 1,
+      createdAt: 100,
+      updatedAt: 100,
+    };
+    const localizedItem: VaultItem = {
+      ...vaultItem,
+      id: 'localized-vault',
+      content: 'credential-value',
+      labelIds: [passwordLabel.id],
+      context: '生产环境',
+    };
+
+    await service.saveLabel(passwordLabel);
+    await service.saveVaultItem(localizedItem);
+
+    for (const query of [
+      'password',
+      '密码',
+      'production',
+      '生产环境',
+    ]) {
+      await expect(service.search(query)).resolves.toMatchObject([
+        {
+          ref: { kind: 'vault', id: localizedItem.id },
+        },
+      ]);
+    }
+
+    await expect(repository.listLabels()).resolves.toContainEqual(
+      passwordLabel,
+    );
+    await expect(
+      repository.getItem({
+        kind: 'vault',
+        id: localizedItem.id,
+      }),
+    ).resolves.toMatchObject({
+      kind: 'vault',
+      item: {
+        context: '生产环境',
+      },
+    });
+  });
+
+  it('indexes full access-key names for records created with the legacy label', async () => {
+    const legacyAccessKeyLabel: Label = {
+      id: 'ak',
+      name: 'AK',
+      usageCount: 1,
+      createdAt: 100,
+      updatedAt: 100,
+    };
+    const legacyAccessKeyItem: VaultItem = {
+      ...vaultItem,
+      id: 'legacy-access-key-vault',
+      content: 'credential-value',
+      labelIds: [legacyAccessKeyLabel.id],
+    };
+
+    await service.saveLabel(legacyAccessKeyLabel);
+    await service.saveVaultItem(legacyAccessKeyItem);
+
+    for (const query of ['AK', 'Access Key']) {
+      await expect(service.search(query)).resolves.toMatchObject([
+        {
+          ref: { kind: 'vault', id: legacyAccessKeyItem.id },
+        },
+      ]);
+    }
+  });
+
   it('removes stale search hits after update and delete', async () => {
     await service.saveVaultItem(vaultItem);
     await service.saveVaultItem({
@@ -118,6 +198,34 @@ describe('SnippetVaultService', () => {
     await expect(service.search('credential')).resolves.toHaveLength(1);
   });
 
+  it('keeps index revisions aligned after taxonomy metadata updates', async () => {
+    const contextPreset: ContextPreset = {
+      id: 'context:project',
+      name: 'Project Alpha',
+      createdAt: 100,
+      updatedAt: 100,
+    };
+
+    await service.saveLabel(tokenLabel);
+    await service.saveVaultItem(vaultItem);
+
+    const contextReceipt = await service.saveContextPreset(contextPreset);
+    const usageReceipt = await service.touchLabelUsage(tokenLabel.id, 200);
+
+    expect(contextReceipt.searchStatus).toBe('synchronized');
+    expect(usageReceipt.searchStatus).toBe('synchronized');
+    await expect(repository.getMeta()).resolves.toMatchObject({
+      dataRevision: 4,
+      indexedRevision: 4,
+    });
+
+    const nextSave = await service.saveVaultItem({
+      ...vaultItem,
+      id: 'vault-after-taxonomy-update',
+    });
+    expect(nextSave.searchStatus).toBe('synchronized');
+  });
+
   it('serializes concurrent writes before searching', async () => {
     await Promise.all([
       service.saveVaultItem(vaultItem),
@@ -134,6 +242,101 @@ describe('SnippetVaultService', () => {
       dataRevision: 2,
       indexedRevision: 2,
     });
+  });
+
+  it('allows only one concurrent conditional vault update to succeed', async () => {
+    await service.saveVaultItem(vaultItem);
+
+    const [first, second] = await Promise.all([
+      service.saveVaultItemIfUnchanged(
+        {
+          ...vaultItem,
+          content: 'vault-update-a',
+          updatedAt: 200,
+        },
+        100,
+      ),
+      service.saveVaultItemIfUnchanged(
+        {
+          ...vaultItem,
+          content: 'vault-update-b',
+          updatedAt: 300,
+        },
+        100,
+      ),
+    ]);
+
+    expect([first.outcome, second.outcome].sort()).toEqual([
+      'conflict',
+      'updated',
+    ]);
+    await expect(service.search('vault update')).resolves.toHaveLength(1);
+    await expect(service.search('vault-update-a')).resolves.toHaveLength(
+      first.outcome === 'updated' ? 1 : 0,
+    );
+    await expect(service.search('vault-update-b')).resolves.toHaveLength(
+      second.outcome === 'updated' ? 1 : 0,
+    );
+    const stored = await repository.getItem({ kind: 'vault', id: vaultItem.id });
+    expect(stored).not.toBeNull();
+    expect(stored?.item.content).toBe(
+      first.outcome === 'updated' ? 'vault-update-a' : 'vault-update-b',
+    );
+    const meta = await repository.getMeta();
+    expect(meta.indexedRevision).toBe(meta.dataRevision);
+  });
+
+  it('allows only one concurrent conditional workspace update to succeed', async () => {
+    const workspace: WorkspaceItem = {
+      id: 'workspace-concurrent',
+      content: 'temporary-value',
+      labelIds: [],
+      createdAt: 100,
+      updatedAt: 100,
+      expiresAt: 1_000,
+    };
+    await service.saveWorkspaceItem(workspace);
+
+    const [first, second] = await Promise.all([
+      service.saveWorkspaceItemIfUnchanged(
+        {
+          ...workspace,
+          content: 'workspace-update-a',
+          updatedAt: 200,
+          expiresAt: 1_500,
+        },
+        100,
+      ),
+      service.saveWorkspaceItemIfUnchanged(
+        {
+          ...workspace,
+          content: 'workspace-update-b',
+          updatedAt: 300,
+          expiresAt: 1_600,
+        },
+        100,
+      ),
+    ]);
+
+    expect([first.outcome, second.outcome].sort()).toEqual([
+      'conflict',
+      'updated',
+    ]);
+    const stored = await repository.getItem({
+      kind: 'workspace',
+      id: workspace.id,
+    });
+    expect(stored).not.toBeNull();
+    expect(stored?.item.content).toBe(
+      first.outcome === 'updated'
+        ? 'workspace-update-a'
+        : 'workspace-update-b',
+    );
+    expect(stored?.item.updatedAt).toBe(
+      first.outcome === 'updated' ? 200 : 300,
+    );
+    const meta = await repository.getMeta();
+    expect(meta.indexedRevision).toBe(meta.dataRevision);
   });
 
   it('filters and prunes expired workspace records', async () => {

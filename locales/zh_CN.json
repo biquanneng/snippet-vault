@@ -1,0 +1,297 @@
+{
+  "extName": "SnippetVault — 开发者代码片段管理器",
+  "extDescription": "在浏览器本地保存、搜索和复制 API 密钥、Token 与代码片段，不再反复翻找 .env 文件。",
+  "actionTitle": "打开 SnippetVault",
+  "commandOpenSearchSidePanel": "打开 SnippetVault 检索侧边栏",
+  "language": {
+    "label": "语言",
+    "system": "跟随浏览器",
+    "english": "English",
+    "chinese": "简体中文"
+  },
+  "theme": {
+    "label": "主题",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色"
+  },
+  "settings": {
+    "title": "设置",
+    "description": "管理 SnippetVault 的显示、保存与内容组织方式",
+    "open": "打开设置",
+    "back": "返回检索",
+    "menu": {
+      "label": "设置分类",
+      "back": "返回设置",
+      "planned": "规划中",
+      "general": {
+        "title": "通用",
+        "description": "语言、主题与检索快捷键"
+      },
+      "workspace": {
+        "title": "环境与工作区",
+        "description": "管理环境标记与临时片段默认过期时间"
+      },
+      "taxonomy": {
+        "title": "标签",
+        "description": "管理片段保存时使用的标签"
+      },
+      "storage": {
+        "title": "存储",
+        "description": "查看本地存储与未来备份能力"
+      }
+    },
+    "appearance": {
+      "title": "外观",
+      "description": "跟随操作系统，或固定使用浅色、深色主题。"
+    },
+    "language": {
+      "title": "语言",
+      "description": "选择 SnippetVault 各个界面使用的语言。"
+    },
+    "shortcut": {
+      "title": "检索快捷键",
+      "description": "双击 Shift 打开页面内检索；Chrome 快捷键打开检索侧边栏，在受限页面也能使用。",
+      "current": "当前快捷键",
+      "loading": "正在读取",
+      "unassigned": "尚未设置",
+      "change": "在 Chrome 中修改",
+      "refresh": "刷新快捷键",
+      "loadFailed": "无法读取当前快捷键。",
+      "openFailed": "无法打开 Chrome 快捷键设置。"
+    },
+    "workspace": {
+      "contextTitle": "环境",
+      "contextDescription": "使用名称和颜色组合标记项目、平台或环境。",
+      "contextSnapshotNotice": "片段会保留保存时选中的环境名称和颜色；之后修改预设只影响未来保存的片段。",
+      "contextName": "名称",
+      "contextPlaceholder": "项目或环境…",
+      "contextColor": "颜色",
+      "addContext": "新增环境",
+      "contextLoading": "正在加载环境",
+      "contextLoadFailed": "环境加载失败。",
+      "retry": "重试",
+      "noContexts": "暂无环境",
+      "builtInContext": "内置",
+      "hiddenContext": "已隐藏",
+      "renameContext": "编辑环境",
+      "saveContext": "保存",
+      "cancelContext": "取消",
+      "restoreContext": "恢复到新建选项",
+      "hideContext": "从新建选项中隐藏",
+      "createContextFailed": "环境新增失败",
+      "contextRestored": "环境已恢复",
+      "contextCreated": "环境已新增",
+      "contextExists": "该环境已存在",
+      "updateContextFailed": "环境更新失败",
+      "contextUpdated": "环境已更新",
+      "contextVisibilityFailed": "环境状态更新失败",
+      "contextArchived": "环境已从新建选项中隐藏",
+      "colors": {
+        "slate": "石板灰",
+        "blue": "蓝色",
+        "cyan": "青色",
+        "green": "绿色",
+        "amber": "琥珀色",
+        "orange": "橙色",
+        "red": "红色",
+        "purple": "紫色"
+      },
+      "defaultTitle": "默认过期时间",
+      "defaultDescription": "设置新建临时片段可以保留多少天。",
+      "days": "天",
+      "newItemsOnly": "仅影响之后新建的片段，不会修改已有记录的过期时间。",
+      "save": "保存默认值",
+      "saving": "正在保存",
+      "saved": "默认过期时间已更新",
+      "invalid": "请输入不小于 1 的整数天数。",
+      "saveFailed": "默认过期时间保存失败。"
+    },
+    "taxonomy": {
+      "loading": "正在加载标签",
+      "loadFailed": "标签加载失败。",
+      "retry": "重试",
+      "archiveNotice": "隐藏只会把标签从之后的新建流程中移除，已有片段仍保留保存时的标签。",
+      "labelPlaceholder": "新增标签…",
+      "labelName": "标签名称",
+      "addLabel": "新增标签",
+      "builtIn": "内置",
+      "hidden": "已隐藏",
+      "noLabels": "暂无标签",
+      "rename": "重命名",
+      "hide": "从新建选项中隐藏",
+      "restore": "恢复到新建选项",
+      "save": "保存名称",
+      "cancel": "取消编辑",
+      "labelCreated": "标签已新增",
+      "labelRestored": "标签已恢复",
+      "labelExists": "该标签已存在",
+      "renamed": "名称已更新",
+      "archived": "已从新建选项中隐藏",
+      "restored": "选项已恢复",
+      "createLabelFailed": "标签新增失败",
+      "renameFailed": "名称更新失败",
+      "visibilityFailed": "选项状态更新失败"
+    },
+    "storage": {
+      "localTitle": "浏览器本地存储",
+      "localDescription": "片段内容与元数据保存在当前扩展的本地 IndexedDB 中。",
+      "active": "使用中",
+      "r2Title": "Cloudflare R2 备份",
+      "r2Description": "完成安全模型设计后，R2 凭据、备份与还原配置会放在这里。",
+      "noticeTitle": "当前没有连接任何云存储",
+      "noticeDescription": "SnippetVault 目前不会上传数据或保存云端凭据。本地数据对能够访问此浏览器 Profile 的人员仍是明文可读的。"
+    }
+  },
+  "labels": {
+    "accessKey": "Access Key",
+    "secretKey": "Secret Key",
+    "password": "密码",
+    "note": "备注"
+  },
+  "environments": {
+    "development": "开发",
+    "test": "测试",
+    "staging": "预发布",
+    "production": "生产"
+  },
+  "errors": {
+    "internal": "操作失败，请稍后重试。",
+    "unauthorized": "无法验证消息来源。",
+    "labelLength": "标签名称需要包含 1 至 $1 个字符。",
+    "invalidLabel": "请选择一个有效标签。",
+    "selectionLength": "请选择 1 至 $1 个字符。",
+    "contextTooLong": "说明内容过长。",
+    "sourceTitleTooLong": "页面标题过长。",
+    "snippetNotFound": "这条片段已不存在。",
+    "snippetConflict": "这条片段已在其他位置更新，请刷新结果后重试。",
+    "expiryFuture": "过期时间必须晚于当前时间。",
+    "invalidRequest": "扩展请求无效。",
+    "invalidResponse": "扩展返回了无法识别的响应。",
+    "noResponse": "扩展暂时没有响应，请重试。"
+  },
+  "tooltip": {
+    "noLabelsHint": "在下方输入标签名并按回车创建",
+    "labelLoadFailed": "标签加载失败",
+    "contextLoadFailed": "环境加载失败",
+    "labelRequired": "请输入标签名称",
+    "labelSelected": "已选中「$1」",
+    "labelSaveFailed": "标签保存失败",
+    "labelCreatedSelected": "已创建并选中「$1」",
+    "selectLabelFirst": "请至少选择或输入一个标签",
+    "saveFailed": "保存失败",
+    "statusContext": "环境：$1",
+    "indexRebuild": "搜索索引将在下次启动时重建",
+    "labelOrderStale": "标签排序稍后更新",
+    "saved": "已保存",
+    "toolbarLabel": "保存所选文本",
+    "loadingLabels": "正在加载标签",
+    "labelGroup": "为这段内容选择一个或多个标签",
+    "labelPrompt": "这段内容是",
+    "expandLabels": "展开 $1 个",
+    "collapseLabels": "收起",
+    "labelPlaceholder": "新增标签…",
+    "labelInputLabel": "输入标签，按回车创建并加入当前选择",
+    "environmentSelectLabel": "选择环境；该值会被保存并参与检索",
+    "environmentPlaceholder": "环境",
+    "environmentNone": "不指定环境",
+    "save": "保存"
+  },
+  "search": {
+    "refresh": "刷新结果",
+    "input": {
+      "vault": "搜索内容、标签、说明或来源…",
+      "workspace": "搜索临时工作区…",
+      "clear": "清空搜索"
+    },
+    "dialog": {
+      "title": "检索 SnippetVault",
+      "description": "搜索保管库记录或临时工作区内容",
+      "close": "关闭"
+    },
+    "tabs": {
+      "vault": "保管库",
+      "workspace": "临时工作区"
+    },
+    "create": {
+      "open": "新建",
+      "title": "新建片段",
+      "vaultDescription": "直接输入文本或 Markdown，保存到保管库。",
+      "workspaceDescription": "保存到临时工作区，并使用设置中的默认过期时间。",
+      "contentLabel": "内容",
+      "contentPlaceholder": "输入文本或 Markdown…",
+      "contentRequired": "请先输入内容",
+      "labelsLabel": "标签",
+      "labelsHint": "选择一个或多个标签。",
+      "workspaceLabelsHint": "可选；需要更方便地找回时再选择标签。",
+      "labelRequired": "请至少选择一个标签",
+      "loadingLabels": "正在加载标签",
+      "labelLoadFailed": "标签加载失败",
+      "contextLoadFailed": "环境加载失败",
+      "retry": "重试",
+      "noLabels": "暂无可用标签。",
+      "environmentLabel": "环境（可选）",
+      "environmentNone": "不指定环境",
+      "cancel": "取消",
+      "save": "保存片段",
+      "saving": "正在保存",
+      "saveFailed": "片段保存失败",
+      "saved": "片段已保存"
+    },
+    "edit": {
+      "title": "编辑片段",
+      "vaultDescription": "修改这条记录，不改变它的类型与采集来源。",
+      "workspaceDescription": "修改这条临时记录，并可按需调整过期时间。",
+      "sourcePreserved": "来源保持不变：$1",
+      "labelsHintWithArchived": "这条片段已有的归档标签可以保留或移除；其他归档标签不可选择。",
+      "archivedLabel": "$1 已归档，仅在这条片段中继续可用。",
+      "keepCurrentContext": "保留当前项 · $1",
+      "expiryLabel": "过期时间",
+      "expiryHint": "不修改即可保留原过期时间。",
+      "expiryInvalid": "请选择晚于当前时间的日期和时间。",
+      "save": "保存修改",
+      "saving": "正在保存修改",
+      "saveFailed": "修改保存失败",
+      "saved": "修改已保存",
+      "conflict": "这条片段已发生变化",
+      "conflictDescription": "请刷新结果，重新打开这条片段后再应用修改。",
+      "notFound": "这条片段已不存在"
+    },
+    "results": {
+      "failed": "检索失败",
+      "retry": "重试",
+      "noMatches": "没有匹配结果",
+      "noRecords": "这里还没有记录",
+      "vaultEmpty": "保存带标签的网页选区后会出现在这里。",
+      "workspaceEmpty": "临时保存的内容会在到期前显示在这里。",
+      "groupCount": "$1 条",
+      "loading": "正在检索",
+      "unknownSource": "未记录来源",
+      "pinned": "已固定",
+      "context": "环境：$1",
+      "expires": "到期 $1",
+      "updated": "更新 $1",
+      "imageAlt": "图片替代文本",
+      "copy": "复制内容",
+      "copied": "已复制",
+      "copyFailed": "内容复制失败",
+      "edit": "编辑",
+      "delete": "删除",
+      "deleted": "片段已删除",
+      "deleteFailed": "片段删除失败",
+      "deleteConfirm": "此操作不可撤销，该条目将被永久删除。",
+      "deleteCancel": "取消"
+    },
+    "status": {
+      "indexRebuild": "搜索索引正在等待恢复，结果会自动重建。",
+      "labelOrderStale": "标签使用排序稍后更新。"
+    },
+    "pagination": {
+      "total": "$1 条记录",
+      "label": "检索结果分页",
+      "previous": "上一页",
+      "next": "下一页",
+      "page": "第 $1 页"
+    }
+  }
+}

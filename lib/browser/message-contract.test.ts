@@ -3,7 +3,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MAX_CONTEXT_PRESET_NAME_LENGTH,
   MAX_LABEL_NAME_LENGTH,
+  hasExtensionMessageType,
   isExtensionRequest,
 } from './message-contract';
 
@@ -18,10 +20,7 @@ describe('create-label message contract', () => {
   });
 
   it('rejects blank and overlong label names', () => {
-    for (const name of [
-      '   ',
-      'x'.repeat(MAX_LABEL_NAME_LENGTH + 1),
-    ]) {
+    for (const name of ['   ', 'x'.repeat(MAX_LABEL_NAME_LENGTH + 1)]) {
       expect(
         isExtensionRequest({
           type: 'snippet-vault/create-label',
@@ -33,12 +32,13 @@ describe('create-label message contract', () => {
 });
 
 describe('save-selection message contract', () => {
-  it('accepts Markdown content and rejects the legacy text field', () => {
+  it('accepts Markdown content with multiple unique labels', () => {
     expect(
       isExtensionRequest({
         type: 'snippet-vault/save-selection',
         payload: {
           content: '**deployment token**',
+          labelIds: ['token', 'client-id'],
           temporary: false,
         },
       }),
@@ -47,11 +47,192 @@ describe('save-selection message contract', () => {
       isExtensionRequest({
         type: 'snippet-vault/save-selection',
         payload: {
-          text: '**deployment token**',
+          content: 'one-time-code',
+          labelIds: [],
+          temporary: true,
+          contextId: 'environment:test',
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects legacy and malformed label selections', () => {
+    expect(
+      isExtensionRequest({
+        type: 'snippet-vault/save-selection',
+        payload: {
+          content: '**deployment token**',
+          labelId: 'token',
           temporary: false,
         },
       }),
     ).toBe(false);
+
+    for (const labelIds of [
+      undefined,
+      'token',
+      ['token', 'token'],
+      ['token', ''],
+      ['token', 7],
+    ]) {
+      expect(
+        isExtensionRequest({
+          type: 'snippet-vault/save-selection',
+          payload: {
+            content: '**deployment token**',
+            labelIds,
+            temporary: false,
+          },
+        }),
+      ).toBe(false);
+    }
+
+    expect(
+      isExtensionRequest({
+        type: 'snippet-vault/save-selection',
+        payload: {
+          content: '**deployment token**',
+          labelIds: ['token'],
+          temporary: false,
+          context: 'legacy',
+          contextId: 'environment:production',
+        },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('create-snippet message contract', () => {
+  it('accepts Vault and Workspace targets with multiple unique labels', () => {
+    for (const kind of ['vault', 'workspace']) {
+      expect(
+        isExtensionRequest({
+          type: 'snippet-vault/create-snippet',
+          payload: {
+            kind,
+            content: '# Deployment\n\nKeep this value close.',
+            labelIds: ['token', 'client-id'],
+            contextId: 'environment:production',
+          },
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects missing or unsupported targets', () => {
+    for (const kind of [undefined, 'other']) {
+      expect(
+        isExtensionRequest({
+          type: 'snippet-vault/create-snippet',
+          payload: {
+            kind,
+            content: 'deployment token',
+            labelIds: ['token'],
+          },
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it('rejects legacy and malformed manual label selections', () => {
+    expect(
+      isExtensionRequest({
+        type: 'snippet-vault/create-snippet',
+        payload: {
+          kind: 'vault',
+          content: 'deployment token',
+          labelId: 'token',
+        },
+      }),
+    ).toBe(false);
+
+    for (const labelIds of [
+      undefined,
+      'token',
+      ['token', 'token'],
+      ['token', ''],
+      ['token', 7],
+    ]) {
+      expect(
+        isExtensionRequest({
+          type: 'snippet-vault/create-snippet',
+          payload: {
+            kind: 'vault',
+            content: 'deployment token',
+            labelIds,
+          },
+        }),
+      ).toBe(false);
+    }
+
+    expect(
+      isExtensionRequest({
+        type: 'snippet-vault/create-snippet',
+        payload: {
+          kind: 'vault',
+          content: 'deployment token',
+          labelIds: ['token'],
+          context: 'legacy',
+          contextId: 'environment:test',
+        },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('management message contract', () => {
+  it('accepts label and context management requests', () => {
+    for (const message of [
+      { type: 'snippet-vault/get-label-management' },
+      {
+        type: 'snippet-vault/rename-label',
+        payload: { id: 'custom:1', name: 'Database' },
+      },
+      {
+        type: 'snippet-vault/archive-label',
+        payload: { id: 'custom:1' },
+      },
+      { type: 'snippet-vault/get-context-presets' },
+      { type: 'snippet-vault/get-context-preset-management' },
+      {
+        type: 'snippet-vault/create-context-preset',
+        payload: {
+          name: 'Shared QA',
+          environment: 'test',
+          color: 'amber',
+        },
+      },
+      {
+        type: 'snippet-vault/rename-context-preset',
+        payload: {
+          id: 'context:1',
+          name: 'Shared QA',
+          color: 'purple',
+        },
+      },
+      {
+        type: 'snippet-vault/restore-context-preset',
+        payload: { id: 'context:1' },
+      },
+    ]) {
+      expect(isExtensionRequest(message)).toBe(true);
+    }
+  });
+
+  it('rejects malformed context preset names, environments, and colors', () => {
+    for (const payload of [
+      { name: '   ' },
+      { name: 'x'.repeat(MAX_CONTEXT_PRESET_NAME_LENGTH + 1) },
+      { name: 'Shared QA', environment: 'prod' },
+      { name: 'Shared QA', color: 'pink' },
+    ]) {
+      expect(
+        isExtensionRequest({
+          type: 'snippet-vault/create-context-preset',
+          payload,
+        }),
+      ).toBe(false);
+    }
   });
 });
 
@@ -83,6 +264,126 @@ describe('search-panel message contract', () => {
           payload,
         }),
       ).toBe(false);
+    }
+  });
+});
+
+describe('update-snippet message contract', () => {
+  it('accepts vault and workspace updates with explicit context actions', () => {
+    expect(
+      isExtensionRequest({
+        type: 'snippet-vault/update-snippet',
+        payload: {
+          kind: 'vault',
+          id: 'vault-1',
+          expectedUpdatedAt: 100,
+          content: 'updated token',
+          labelIds: ['token'],
+          context: { mode: 'preserve' },
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      isExtensionRequest({
+        type: 'snippet-vault/update-snippet',
+        payload: {
+          kind: 'workspace',
+          id: 'workspace-1',
+          expectedUpdatedAt: 100,
+          content: 'updated note',
+          labelIds: [],
+          context: { mode: 'set', contextId: 'environment:test' },
+          expiresAt: 2_000,
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects invalid optimistic concurrency, context, and expiry payloads', () => {
+    for (const payload of [
+      {
+        kind: 'vault',
+        id: '',
+        expectedUpdatedAt: 100,
+        content: 'updated token',
+        labelIds: ['token'],
+      },
+      {
+        kind: 'vault',
+        id: 'vault-1',
+        expectedUpdatedAt: -1,
+        content: 'updated token',
+        labelIds: ['token'],
+      },
+      {
+        kind: 'vault',
+        id: 'vault-1',
+        expectedUpdatedAt: 100,
+        content: 'updated token',
+        labelIds: ['token'],
+        context: { mode: 'set' },
+      },
+      {
+        kind: 'vault',
+        id: 'vault-1',
+        expectedUpdatedAt: 100,
+        content: 'updated token',
+        labelIds: ['token'],
+        context: { mode: 'clear', contextId: 'environment:test' },
+      },
+      {
+        kind: 'vault',
+        id: 'vault-1',
+        expectedUpdatedAt: 100,
+        content: 'updated token',
+        labelIds: ['token'],
+        expiresAt: 2_000,
+      },
+      {
+        kind: 'workspace',
+        id: 'workspace-1',
+        expectedUpdatedAt: 100,
+        content: 'updated note',
+        labelIds: ['token', 'token'],
+      },
+      {
+        kind: 'workspace',
+        id: 'workspace-1',
+        expectedUpdatedAt: 100,
+        content: 'updated note',
+        labelIds: [],
+        expiresAt: 0,
+      },
+    ]) {
+      expect(
+        isExtensionRequest({
+          type: 'snippet-vault/update-snippet',
+          payload,
+        }),
+      ).toBe(false);
+    }
+  });
+});
+
+describe('request locale', () => {
+  it('accepts the two supported locales and rejects other values', () => {
+    for (const locale of ['en', 'zh_CN']) {
+      expect(
+        isExtensionRequest({
+          type: 'snippet-vault/get-labels',
+          locale,
+        }),
+      ).toBe(true);
+    }
+
+    for (const locale of ['zh-TW', 'fr', null]) {
+      const message = {
+        type: 'snippet-vault/get-labels',
+        locale,
+      };
+      expect(isExtensionRequest(message)).toBe(false);
+      expect(hasExtensionMessageType(message)).toBe(true);
     }
   });
 });

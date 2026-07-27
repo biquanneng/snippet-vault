@@ -1,7 +1,26 @@
 // SPDX-License-Identifier: MPL-2.0
 
-export const STORAGE_SCHEMA_VERSION = 1;
-export const SEARCH_SCHEMA_VERSION = 3;
+export const STORAGE_SCHEMA_VERSION = 2;
+export const SEARCH_SCHEMA_VERSION = 4;
+
+export type ContextEnvironment =
+  | 'development'
+  | 'test'
+  | 'staging'
+  | 'production';
+
+export const CONTEXT_COLORS = [
+  'slate',
+  'blue',
+  'cyan',
+  'green',
+  'amber',
+  'orange',
+  'red',
+  'purple',
+] as const;
+
+export type ContextColor = (typeof CONTEXT_COLORS)[number];
 
 export interface SourceMetadata {
   title?: string;
@@ -14,6 +33,7 @@ interface BaseItem {
   content: string;
   labelIds: string[];
   context?: string;
+  contextColor?: ContextColor;
   source?: SourceMetadata;
   createdAt: number;
   updatedAt: number;
@@ -33,6 +53,17 @@ export interface Label {
   name: string;
   usageCount: number;
   lastUsedAt?: number;
+  archivedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ContextPreset {
+  id: string;
+  name: string;
+  color?: ContextColor;
+  environment?: ContextEnvironment;
+  archivedAt?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -68,6 +99,15 @@ export interface MutationResult {
   dataRevision: number;
 }
 
+export type ConditionalMutationOutcome =
+  | 'updated'
+  | 'not-found'
+  | 'conflict';
+
+export interface ConditionalMutationResult extends MutationResult {
+  outcome: ConditionalMutationOutcome;
+}
+
 export interface PruneResult extends MutationResult {
   removed: ItemReference[];
 }
@@ -77,6 +117,11 @@ export type SearchSynchronizationStatus =
   | 'rebuild-required';
 
 export interface MutationReceipt extends MutationResult {
+  searchStatus: SearchSynchronizationStatus;
+}
+
+export interface ConditionalMutationReceipt
+  extends ConditionalMutationResult {
   searchStatus: SearchSynchronizationStatus;
 }
 

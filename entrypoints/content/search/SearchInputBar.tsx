@@ -9,8 +9,10 @@ import {
   MAX_SEARCH_QUERY_LENGTH,
   type SearchPanelKind,
 } from '../../../lib/browser/message-contract';
+import { useI18n } from '../../../lib/use-i18n';
 
 interface SearchInputBarProps {
+  disabled?: boolean;
   kind: SearchPanelKind;
   query: string;
   onClear: () => void;
@@ -22,13 +24,14 @@ export const SearchInputBar = forwardRef<
   HTMLInputElement,
   SearchInputBarProps
 >(function SearchInputBar(
-  { kind, query, onClear, onQueryChange, onSearch },
+  { disabled = false, kind, query, onClear, onQueryChange, onSearch },
   ref,
 ) {
+  const { t } = useI18n();
   const placeholder =
     kind === 'vault'
-      ? '搜索内容、标签、说明或来源…'
-      : '搜索临时工作区…';
+      ? t('search.input.vault')
+      : t('search.input.workspace');
 
   return (
     <div className="relative flex h-14 items-center">
@@ -38,7 +41,7 @@ export const SearchInputBar = forwardRef<
       />
       <Input
         ref={ref}
-        className="h-14 rounded-none border-0 bg-transparent pr-10 pl-9 text-base shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 md:text-base"
+        className="h-14 rounded-none border-0 bg-transparent pr-10 pl-9 text-base shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 md:text-base dark:bg-transparent"
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         onKeyDown={(event) => {
@@ -50,6 +53,7 @@ export const SearchInputBar = forwardRef<
         }}
         placeholder={placeholder}
         aria-label={placeholder}
+        disabled={disabled}
         maxLength={MAX_SEARCH_QUERY_LENGTH}
         autoComplete="off"
         spellCheck={false}
@@ -59,10 +63,11 @@ export const SearchInputBar = forwardRef<
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="absolute right-0 text-muted-foreground hover:text-foreground"
+          className="absolute right-1 text-muted-foreground hover:text-foreground"
+          disabled={disabled}
           onClick={onClear}
-          aria-label="清空搜索"
-          title="清空搜索"
+          aria-label={t('search.input.clear')}
+          title={t('search.input.clear')}
         >
           <X aria-hidden="true" />
         </Button>

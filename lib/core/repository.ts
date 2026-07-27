@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import type {
+  ConditionalMutationResult,
+  ContextPreset,
   ItemReference,
   Label,
   MutationResult,
@@ -26,9 +28,18 @@ export interface VaultRepository {
 
   putVaultItem(item: VaultItem): Promise<MutationResult>;
   putWorkspaceItem(item: WorkspaceItem): Promise<MutationResult>;
+  putVaultItemIfUnchanged(
+    item: VaultItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationResult>;
+  putWorkspaceItemIfUnchanged(
+    item: WorkspaceItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationResult>;
   putLabel(label: Label): Promise<MutationResult>;
+  putContextPreset(preset: ContextPreset): Promise<MutationResult>;
+  touchLabelUsage(id: string, time: number): Promise<MutationResult>;
   deleteItem(reference: ItemReference): Promise<MutationResult>;
-  deleteLabel(id: string): Promise<MutationResult>;
   promoteWorkspaceItem(
     workspaceId: string,
     vaultItem: VaultItem,
@@ -38,7 +49,10 @@ export interface VaultRepository {
   getItem(reference: ItemReference): Promise<StoredRecord | null>;
   getItems(references: ItemReference[]): Promise<StoredRecord[]>;
   listActiveRecords(now: number): Promise<StoredRecord[]>;
-  listLabels(): Promise<Label[]>;
+  listLabels(options?: { includeArchived?: boolean }): Promise<Label[]>;
+  listContextPresets(
+    options?: { includeArchived?: boolean },
+  ): Promise<ContextPreset[]>;
 
   close(): Promise<void>;
 }
