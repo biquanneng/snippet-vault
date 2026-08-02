@@ -56,11 +56,9 @@ export function App() {
         <SettingsPage onBack={() => setPage('search')} />
       ) : (
         <SearchPanelContent
-          analyticsSurface="side_panel"
           inputRef={inputRef}
           capabilities={{
             enhancedCreate: true,
-            filterControls: true,
             workspaceLifecycleActions: true,
           }}
           toolbarEnd={

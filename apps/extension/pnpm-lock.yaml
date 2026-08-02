@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@wxt-dev/analytics':
+        specifier: 0.5.6
+        version: 0.5.6(wxt@0.20.27(@types/node@26.1.1)(jiti@2.7.0)(rolldown@1.1.5))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1632,6 +1635,11 @@ packages:
   '@webext-core/match-patterns@1.1.0':
     resolution: {integrity: sha512-vebVVbcOyva4jyvljIzRJwjFi/OKMLr96LIIxiPeXfA38gE4Z3+H6Y9DwRmn7pWErJGNNHU6XOhOb5ZwicGs7Q==}
 
+  '@wxt-dev/analytics@0.5.6':
+    resolution: {integrity: sha512-nUESRP2esOncXGHUB6EF39RhZ3pApTxJt55jInrymDuAcgvQ0hjhicKDvyPwSQ31pa+sc6BuEtnvKfpKUCrq1g==}
+    peerDependencies:
+      wxt: '>=0.20.0'
+
   '@wxt-dev/auto-icons@1.1.1':
     resolution: {integrity: sha512-Dw2NKK51CCFurE95NptiEheuxVtkeX4vTQwEbhCkFVP9LzXNxOZTX9C9NAsGe6OfahelXlS51TW74hTSzsMILw==}
     peerDependencies:
@@ -1650,6 +1658,9 @@ packages:
     peerDependenciesMeta:
       wxt:
         optional: true
+
+  '@wxt-dev/is-background@1.0.1':
+    resolution: {integrity: sha512-/VKBoe7LUxPd4Q3U/vl+1JCCVPGRCi47LnjYaXbibUnFINFSs3lYf8eEegHj+m4XspmK9tAxB958Zl0MrGbgCQ==}
 
   '@wxt-dev/module-react@1.2.2':
     resolution: {integrity: sha512-+lRLi1r9dAXpLySWSIWHLJ1h/nFzR20iQnx3RNrKyA6oJg4+ClOluVXozHjfPg9Okfy/umtffiOopGayASrg6w==}
@@ -3750,6 +3761,10 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  ua-parser-js@1.0.41:
+    resolution: {integrity: sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==}
+    hasBin: true
+
   ufo@1.6.4:
     resolution: {integrity: sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA==}
 
@@ -5578,6 +5593,13 @@ snapshots:
 
   '@webext-core/match-patterns@1.1.0': {}
 
+  '@wxt-dev/analytics@0.5.6(wxt@0.20.27(@types/node@26.1.1)(jiti@2.7.0)(rolldown@1.1.5))':
+    dependencies:
+      '@wxt-dev/browser': 0.2.2
+      '@wxt-dev/is-background': 1.0.1
+      ua-parser-js: 1.0.41
+      wxt: 0.20.27(@types/node@26.1.1)(jiti@2.7.0)(rolldown@1.1.5)
+
   '@wxt-dev/auto-icons@1.1.1(wxt@0.20.27(@types/node@26.1.1)(jiti@2.7.0)(rolldown@1.1.5))':
     dependencies:
       defu: 6.1.7
@@ -5603,6 +5625,10 @@ snapshots:
       tinyglobby: 0.2.17
     optionalDependencies:
       wxt: 0.20.27(@types/node@26.1.1)(jiti@2.7.0)(rolldown@1.1.5)
+
+  '@wxt-dev/is-background@1.0.1':
+    dependencies:
+      '@wxt-dev/browser': 0.2.2
 
   '@wxt-dev/module-react@1.2.2(vite@8.1.5(@types/node@26.1.1)(esbuild@0.27.7)(jiti@2.7.0))(wxt@0.20.27(@types/node@26.1.1)(jiti@2.7.0)(rolldown@1.1.5))':
     dependencies:
@@ -7661,6 +7687,8 @@ snapshots:
   typedarray@0.0.6: {}
 
   typescript@5.9.3: {}
+
+  ua-parser-js@1.0.41: {}
 
   ufo@1.6.4: {}
 

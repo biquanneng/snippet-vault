@@ -1,0 +1,7 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+
+[data-product="snippetvault"] {
+  --brand: #84cc16;
+  --brand-dark: #65a30d;
+  --ring: var(--brand);
+}

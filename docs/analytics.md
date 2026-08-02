@@ -1,32 +1,35 @@
 # Anonymous usage analytics
 
-SnippetVault supports optional Google Analytics 4 usage analytics. Analytics is
+SnippetVault supports optional Google Analytics 4 usage analytics through the
+WXT Analytics module and a project-owned collection provider. Analytics is
 disabled by default and can be enabled or disabled under **Settings > General**.
 
 ## Data boundary
 
-The extension sends only these allowlisted product events after the user opts
-in:
+The extension sends only these two product-entry events after the user opts in:
 
-- `surface_opened`, with `side_panel` or `in_page_search`;
-- `search_submitted`, with the surface and record kind, but never the query;
-- `snippet_saved`, with the surface, record kind, and `create` or `edit`;
-- `workspace_extended` and `workspace_promoted`, with the surface.
+- `open_side_panel`, when Chrome reports that the side panel opened, with a
+  side-panel document-open fallback for Chrome versions without that event;
+- `open_in_page_search`, when double-Shift successfully opens in-page search.
 
-The transport also supplies a random installation identifier, extension
-version, UI language, and screen size. As with any HTTPS request, Google can
-observe connection metadata such as the IP address and browser user agent.
+The transport supplies a random installation identifier so GA4 can aggregate
+usage without an account. It does not explicitly send extension version,
+language, screen size, operating system, or browser version. As with any HTTPS
+request, Google can still observe connection metadata such as the IP address
+and browser user agent.
 
-Snippet content, labels, contexts, search queries, source titles, source URLs,
-domains, clipboard data, backup contents, record IDs, expiry values, errors,
-and stack traces must never be passed to analytics. Do not enable WXT's
-`autoTrack`, automatic page tracking, `identify`, or error reporting without a
-new product decision and security review.
+Search submissions, saves, copies, edits, deletes, filters, workspace actions,
+backup actions, snippet content, labels, contexts, search queries, source
+titles, source URLs, domains, clipboard data, backup contents, record IDs,
+expiry values, errors, and stack traces must never be passed to analytics. Do
+not enable WXT's `autoTrack`, automatic page tracking, `identify`, or error
+reporting without a new product decision and security review.
 
 ## Transport
 
 Manifest V3 extensions cannot execute the remotely hosted `gtag.js` script.
-SnippetVault therefore sends HTTPS requests directly to
+The WXT module forwards UI events to the extension background, where the custom
+provider sends HTTPS requests directly to
 `https://www.google-analytics.com/g/collect`, the GA4 web collection endpoint
 used by the packaged `gsc-vault` extension. Requests contain the public
 measurement ID `G-3WMCRSJL96`; no API secret or remotely hosted JavaScript is

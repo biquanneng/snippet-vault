@@ -39,6 +39,13 @@ Saved Markdown is parsed into React elements without HTML injection. Arbitrary
 raw HTML remains inert text, links are limited to `http`, `https`, and `mailto`,
 and image syntax never causes a remote image request.
 
+The in-page search panel runs in the extension's isolated content script. Its
+context-filter reads and workspace lifecycle mutations are accepted only when
+Chrome identifies the sender as this extension, associates it with a browser
+tab, and reports a supported page URL. Ordinary page scripts and other
+extensions cannot use these message routes. Settings, taxonomy mutations, and
+backup operations remain restricted to verified extension pages.
+
 Local backups are readable JSON and can contain snippet contents, secrets, full
 URLs, and source metadata. Anyone who can read the exported file can read that
 data. Import is restricted to verified extension pages, strictly validated,
@@ -47,13 +54,14 @@ merge. See [Backup import and export security](docs/backup-import-export-securit
 for the threat and failure boundary.
 
 Anonymous usage analytics is optional and disabled by default. When enabled,
-the extension sends a small allowlist of fixed feature events plus basic
-technical metadata to Google Analytics 4. It never includes snippet content,
-labels, contexts, search queries, source metadata, clipboard data, backups,
-record IDs, errors, or stack traces. The public GA4 measurement ID is not an
-authentication credential, so analytics traffic can be forged; it does not
-protect SnippetVault data. See [Anonymous usage analytics](docs/analytics.md)
-for the event contract and failure boundary.
+the extension reports only `open_side_panel` and `open_in_page_search` to
+Google Analytics 4. It never reports searches or other product actions and
+never includes snippet content, labels, contexts, search queries, source
+metadata, clipboard data, backups, record IDs, errors, or stack traces. The
+public GA4 measurement ID is not an authentication credential, so analytics
+traffic can be forged; it does not protect SnippetVault data. See
+[Anonymous usage analytics](docs/analytics.md) for the event contract and
+failure boundary.
 
 High-priority reports include:
 

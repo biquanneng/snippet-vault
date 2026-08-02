@@ -52,17 +52,25 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  onBackdropPointerDown,
   portalContainer,
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  onBackdropPointerDown?: React.PointerEventHandler<HTMLDivElement>
   portalContainer?: React.ComponentProps<typeof DialogPrimitive.Portal>["container"]
   showCloseButton?: boolean
 }) {
   return (
     <DialogPortal container={portalContainer}>
       {/* Keep Content inside RemoveScroll before Shadow DOM retargets wheel events. */}
-      <DialogOverlay>
+      <DialogOverlay
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) {
+            onBackdropPointerDown?.(event)
+          }
+        }}
+      >
         <DialogPrimitive.Content
           data-slot="dialog-content"
           className={cn(

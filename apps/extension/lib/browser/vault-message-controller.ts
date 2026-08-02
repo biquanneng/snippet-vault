@@ -1789,8 +1789,11 @@ export class VaultMessageController {
         request.type === MESSAGE_TYPE.createLabel ||
         request.type === MESSAGE_TYPE.createSnippet ||
         request.type === MESSAGE_TYPE.deleteItem ||
+        request.type === MESSAGE_TYPE.extendWorkspaceItem ||
+        request.type === MESSAGE_TYPE.getContextPresetManagement ||
         request.type === MESSAGE_TYPE.getContextPresets ||
         request.type === MESSAGE_TYPE.getLabels ||
+        request.type === MESSAGE_TYPE.promoteWorkspaceItem ||
         request.type === MESSAGE_TYPE.searchPanel ||
         request.type === MESSAGE_TYPE.saveSelection ||
         request.type === MESSAGE_TYPE.updateSnippet

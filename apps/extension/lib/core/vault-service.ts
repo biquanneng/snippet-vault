@@ -697,22 +697,14 @@ export class SnippetVaultService {
   }
 
   private compareDefaultRecords(left: StoredRecord, right: StoredRecord): number {
-    if (left.kind !== right.kind) {
-      return left.kind === 'workspace' ? -1 : 1;
+    const createdAtOrder = right.item.createdAt - left.item.createdAt;
+    if (createdAtOrder !== 0) {
+      return createdAtOrder;
     }
-    if (left.kind === 'workspace' && right.kind === 'workspace') {
-      return left.item.expiresAt - right.item.expiresAt;
+    if (left.item.id === right.item.id) {
+      return 0;
     }
-    if (left.kind === 'vault' && right.kind === 'vault') {
-      if (left.item.pinned !== right.item.pinned) {
-        return left.item.pinned ? -1 : 1;
-      }
-      return (
-        (right.item.lastUsedAt ?? right.item.updatedAt) -
-        (left.item.lastUsedAt ?? left.item.updatedAt)
-      );
-    }
-    return 0;
+    return left.item.id < right.item.id ? -1 : 1;
   }
 
   private isExpired(record: StoredRecord, now: number): boolean {

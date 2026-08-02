@@ -30,8 +30,8 @@ public source code.
 - No account and no SnippetVault-hosted cloud are required.
 - No captured data, source URL, or search query is sent to biqn.dev, analytics,
   AI services, or another remote service.
-- Optional anonymous usage analytics is off by default. When enabled, it sends
-  only allowlisted feature events and basic technical metadata to Google
+- Optional anonymous usage analytics is off by default. When enabled, it only
+  counts side-panel opens and double-Shift in-page search opens in Google
   Analytics 4.
 - Product usefulness and user trust take priority over promotion.
 
@@ -56,10 +56,11 @@ pnpm test
 pnpm build
 ```
 
-GA4 analytics sends allowlisted events directly to the GA4 web collection
-endpoint using the public measurement ID. It does not load remote scripts or
-require an API secret. See [Anonymous usage analytics](docs/analytics.md) for
-the exact event boundary and disclosure requirements.
+GA4 analytics sends only the two documented product-entry events to the GA4
+web collection endpoint using the public measurement ID. It does not load
+remote scripts or require an API secret. See
+[Anonymous usage analytics](docs/analytics.md) for the exact event boundary and
+disclosure requirements.
 
 The current implementation targets Chrome Manifest V3 only. Firefox packaging
 and compatibility work are intentionally deferred.

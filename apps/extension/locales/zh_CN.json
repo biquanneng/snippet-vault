@@ -49,9 +49,9 @@
     },
     "analytics": {
       "title": "匿名使用数据",
-      "description": "向 Google Analytics 分享少量产品使用事件，帮助改进 SnippetVault。此功能默认关闭。",
+      "description": "向 Google Analytics 分享两个检索入口的打开次数，帮助改进 SnippetVault。此功能默认关闭。",
       "toggle": "分享匿名使用数据",
-      "details": "启用后，仅发送固定的功能名称，以及应用版本、浏览器、操作系统、语言和屏幕尺寸等基础技术信息。片段内容、标签、环境、搜索词、来源 URL、剪贴板数据和备份绝不会被发送。",
+      "details": "启用后，仅记录打开侧边栏，以及双击 Shift 打开页内检索。搜索和其他产品操作均不会被记录。",
       "permissionDenied": "未授予 Google Analytics 访问权限，匿名使用统计仍保持关闭。",
       "saveFailed": "匿名使用统计设置更新失败。"
     },

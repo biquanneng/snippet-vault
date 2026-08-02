@@ -28,8 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
-import { snippetSaved } from "../../lib/analytics-events";
-import { trackAnalyticsEvent } from "../../lib/analytics";
 import {
   MAX_LABEL_NAME_LENGTH,
   MESSAGE_TYPE,
@@ -405,10 +403,6 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
     }
 
     setSaved(true);
-    trackAnalyticsEvent(
-      snippetSaved("selection_tooltip", "vault", "create"),
-    );
-
     const statusMessages = [
       contextId
         ? t("tooltip.statusContext", [

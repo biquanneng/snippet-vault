@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import sonnerStyles from "sonner/dist/styles.css?inline";
 
 import { Toaster } from "../../components/ui/sonner";
+import { trackAnalyticsEvent } from "../../lib/analytics";
+import { openInPageSearch } from "../../lib/analytics-events";
 import { toLanguageTag } from "../../lib/i18n-catalog";
 import { applyThemeToElement } from "../../lib/theme";
 import { useI18n } from "../../lib/use-i18n";
@@ -26,7 +28,12 @@ export function ContentOverlayRoot({
   } = useThemePreference();
   const [searchOpen, setSearchOpen] = useState(false);
 
-  useDoubleShiftShortcut(() => setSearchOpen(true), !searchOpen);
+  const openSearch = useCallback(() => {
+    trackAnalyticsEvent(openInPageSearch());
+    setSearchOpen(true);
+  }, []);
+
+  useDoubleShiftShortcut(openSearch, !searchOpen);
 
   useEffect(() => {
     applyThemeToElement(portalContainer, {

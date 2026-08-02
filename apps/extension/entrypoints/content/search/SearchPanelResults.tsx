@@ -28,7 +28,6 @@ interface SearchPanelResultsProps {
   data: SearchPanelData | null;
   error: string | null;
   kind: SearchPanelKind;
-  labelFilteringEnabled: boolean;
   loading: boolean;
   portalContainer?: HTMLElement;
   query: string;
@@ -55,7 +54,6 @@ export function SearchPanelResults({
   data,
   error,
   kind,
-  labelFilteringEnabled,
   loading,
   portalContainer,
   query,
@@ -141,10 +139,9 @@ export function SearchPanelResults({
         role="listbox"
         aria-label={t('search.results.listLabel')}
       >
-        {kind === 'vault' ? (
+        {kind === 'vault' && query ? (
           <VaultResults
             data={data}
-            labelFilteringEnabled={labelFilteringEnabled}
             portalContainer={portalContainer}
             query={query}
             resultsId={resultsId}
@@ -162,7 +159,6 @@ export function SearchPanelResults({
               <SearchResultItem
                 key={item.id}
                 item={item}
-                labelFilteringEnabled={labelFilteringEnabled}
                 portalContainer={portalContainer}
                 query={query}
                 domId={getSearchResultOptionId(resultsId, item.id)}
@@ -199,7 +195,6 @@ export function SearchPanelResults({
 
 function VaultResults({
   data,
-  labelFilteringEnabled,
   itemRefs,
   portalContainer,
   query,
@@ -212,7 +207,6 @@ function VaultResults({
   onSelectedItemChange,
 }: {
   data: SearchPanelData;
-  labelFilteringEnabled: boolean;
   itemRefs: Record<string, HTMLLIElement | null>;
   portalContainer?: HTMLElement;
   query: string;
@@ -259,7 +253,6 @@ function VaultResults({
               <SearchResultItem
                 key={item.id}
                 item={item}
-                labelFilteringEnabled={labelFilteringEnabled}
                 portalContainer={portalContainer}
                 query={query}
                 domId={getSearchResultOptionId(resultsId, item.id)}

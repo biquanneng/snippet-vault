@@ -416,34 +416,82 @@ describe('SnippetVaultService', () => {
     ).resolves.toBeNull();
   });
 
-  it('returns active workspace records before pinned and recent vault records for an empty query', async () => {
+  it('returns every record by newest creation time for an empty query', async () => {
     await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem({
       ...vaultItem,
-      id: 'recent',
+      id: 'vault-newest',
+      createdAt: 400,
       updatedAt: 400,
     });
     await service.saveVaultItem({
       ...vaultItem,
-      id: 'pinned',
+      id: 'vault-oldest-pinned',
       pinned: true,
-      updatedAt: 200,
+      createdAt: 100,
+      updatedAt: 450,
     });
     await service.saveWorkspaceItem({
-      id: 'temporary',
+      id: 'workspace-middle',
       content: 'temporary',
       labelIds: [],
       contextId: productionContextPreset.id,
-      createdAt: 100,
-      updatedAt: 100,
+      createdAt: 300,
+      updatedAt: 300,
       expiresAt: 1_000,
     });
 
     const results = await service.search('');
     expect(results.map((result) => result.ref)).toEqual([
-      { kind: 'workspace', id: 'temporary' },
-      { kind: 'vault', id: 'pinned' },
-      { kind: 'vault', id: 'recent' },
+      { kind: 'vault', id: 'vault-newest' },
+      { kind: 'workspace', id: 'workspace-middle' },
+      { kind: 'vault', id: 'vault-oldest-pinned' },
+    ]);
+  });
+
+  it('browses vault and workspace records by newest creation time', async () => {
+    await service.saveVaultItem({
+      ...vaultItem,
+      id: 'vault-older-pinned',
+      pinned: true,
+      createdAt: 100,
+      updatedAt: 490,
+    });
+    await service.saveVaultItem({
+      ...vaultItem,
+      id: 'vault-newer',
+      createdAt: 300,
+      updatedAt: 300,
+    });
+    await service.saveWorkspaceItem({
+      id: 'workspace-older-expiring-sooner',
+      content: 'older temporary',
+      labelIds: [],
+      createdAt: 100,
+      updatedAt: 100,
+      expiresAt: 700,
+    });
+    await service.saveWorkspaceItem({
+      id: 'workspace-newer-expiring-later',
+      content: 'newer temporary',
+      labelIds: [],
+      createdAt: 200,
+      updatedAt: 200,
+      expiresAt: 2_000,
+    });
+
+    const [vaultPage, workspacePage] = await Promise.all([
+      service.browse('vault'),
+      service.browse('workspace'),
+    ]);
+
+    expect(vaultPage.results.map((result) => result.ref.id)).toEqual([
+      'vault-newer',
+      'vault-older-pinned',
+    ]);
+    expect(workspacePage.results.map((result) => result.ref.id)).toEqual([
+      'workspace-newer-expiring-later',
+      'workspace-older-expiring-sooner',
     ]);
   });
 

@@ -1,0 +1,122 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+
+/* SnippetVault 动效 */
+/* 目标平台 Chrome / Edge，animation-timeline 支持良好 */
+
+/* ── Hero 逐层入场 ── */
+@keyframes sv-hero-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-product="snippetvault"] .sv-hero-badge,
+[data-product="snippetvault"] .sv-hero-heading,
+[data-product="snippetvault"] .sv-hero-copy,
+[data-product="snippetvault"] .sv-hero-actions,
+[data-product="snippetvault"] .sv-hero-facts,
+[data-product="snippetvault"] .sv-hero-preview {
+  animation: sv-hero-enter 520ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+[data-product="snippetvault"] .sv-hero-badge   { animation-delay: 40ms; }
+[data-product="snippetvault"] .sv-hero-heading { animation-delay: 120ms; }
+[data-product="snippetvault"] .sv-hero-copy    { animation-delay: 200ms; }
+[data-product="snippetvault"] .sv-hero-actions { animation-delay: 280ms; }
+[data-product="snippetvault"] .sv-hero-facts   { animation-delay: 360ms; }
+[data-product="snippetvault"] .sv-hero-preview { animation-delay: 440ms; }
+
+/* ── Section 滚动渐入 ── */
+@keyframes sv-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-product="snippetvault"] .sv-reveal {
+  animation: sv-reveal 640ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-timeline: view();
+  animation-range: entry 8% entry 92%;
+}
+
+/* ── Card 交错渐入 ── */
+[data-product="snippetvault"] .sv-card-reveal {
+  animation: sv-reveal 520ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-timeline: view();
+  animation-range: entry 12% entry 88%;
+}
+
+[data-product="snippetvault"] .sv-card-reveal:nth-child(1) { animation-delay: 0ms; }
+[data-product="snippetvault"] .sv-card-reveal:nth-child(2) { animation-delay: 80ms; }
+[data-product="snippetvault"] .sv-card-reveal:nth-child(3) { animation-delay: 160ms; }
+[data-product="snippetvault"] .sv-card-reveal:nth-child(4) { animation-delay: 240ms; }
+
+/* ── 卡片悬浮 ── */
+[data-product="snippetvault"] .sv-card {
+  transition:
+    transform 280ms cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow 280ms cubic-bezier(0.25, 1, 0.5, 1),
+    border-color 280ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+[data-product="snippetvault"] .sv-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px oklch(0 0 0 / 6%);
+  border-color: var(--brand);
+}
+
+/* ── 按钮悬浮 ── */
+[data-product="snippetvault"] .sv-btn {
+  transition:
+    transform 200ms cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow 200ms cubic-bezier(0.25, 1, 0.5, 1),
+    background-color 200ms cubic-bezier(0.25, 1, 0.5, 1),
+    border-color 200ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+[data-product="snippetvault"] .sv-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 12px oklch(0 0 0 / 8%);
+}
+
+[data-product="snippetvault"] .sv-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ── 减弱动效偏好 ── */
+@media (prefers-reduced-motion: reduce) {
+  [data-product="snippetvault"] .sv-hero-badge,
+  [data-product="snippetvault"] .sv-hero-heading,
+  [data-product="snippetvault"] .sv-hero-copy,
+  [data-product="snippetvault"] .sv-hero-actions,
+  [data-product="snippetvault"] .sv-hero-facts,
+  [data-product="snippetvault"] .sv-hero-preview,
+  [data-product="snippetvault"] .sv-reveal,
+  [data-product="snippetvault"] .sv-card-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  [data-product="snippetvault"] .sv-card,
+  [data-product="snippetvault"] .sv-btn {
+    transition: none;
+  }
+
+  [data-product="snippetvault"] .sv-card:hover,
+  [data-product="snippetvault"] .sv-btn:hover,
+  [data-product="snippetvault"] .sv-btn:active {
+    transform: none;
+    box-shadow: none;
+  }
+}

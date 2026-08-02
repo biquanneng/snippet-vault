@@ -33,7 +33,7 @@ export function MarkdownContent({
 
   return (
     <div
-      className={`${flush ? '' : 'mt-2'} max-h-48 overflow-auto break-words text-sm leading-6 text-foreground`}
+      className={`${flush ? '' : 'mt-2'} break-words text-sm leading-6 text-foreground`}
     >
       <MarkdownBlocks blocks={blocks} query={query} />
     </div>

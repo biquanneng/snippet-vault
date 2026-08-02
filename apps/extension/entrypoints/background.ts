@@ -11,6 +11,8 @@ import {
   VaultMessageController,
   type MessageSenderContext,
 } from '../lib/browser/vault-message-controller';
+import { trackAnalyticsEvent } from '../lib/analytics';
+import { openSidePanel } from '../lib/analytics-events';
 import { createSnippetVaultService } from '../lib/core';
 import { getUiLocale, initializeLanguage } from '../lib/i18n';
 import { translate } from '../lib/i18n-catalog';
@@ -20,6 +22,13 @@ let controller: VaultMessageController | null = null;
 
 export default defineBackground(() => {
   void initializeLanguage();
+
+  const sidePanelWithOpenedEvent = browser.sidePanel as typeof browser.sidePanel & {
+    onOpened?: { addListener: (callback: () => void) => void };
+  };
+  sidePanelWithOpenedEvent.onOpened?.addListener(() => {
+    trackAnalyticsEvent(openSidePanel());
+  });
 
   void browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })

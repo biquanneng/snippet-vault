@@ -42,7 +42,11 @@ export function SearchPanel({
         portalContainer={portalContainer}
         showCloseButton={false}
         data-snippet-vault-ui="true"
-        className="flex h-3/4 min-h-80 flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:max-w-3xl"
+        className="flex h-3/4 min-h-80 flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:w-11/12 sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl"
+        onBackdropPointerDown={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           inputRef.current?.focus();
@@ -56,7 +60,7 @@ export function SearchPanel({
         </DialogDescription>
 
         <SearchPanelContent
-          analyticsSurface="in_page_search"
+          capabilities={{ workspaceLifecycleActions: true }}
           inputRef={inputRef}
           portalContainer={portalContainer}
           requestSender={requestSender}

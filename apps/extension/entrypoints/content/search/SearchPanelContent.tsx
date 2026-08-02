@@ -35,14 +35,6 @@ import {
   TooltipTrigger,
 } from '../../../components/ui/tooltip';
 import {
-  searchSubmitted,
-  snippetSaved,
-  surfaceOpened,
-  workspaceActionCompleted,
-  type AnalyticsSurface,
-} from '../../../lib/analytics-events';
-import { trackAnalyticsEvent } from '../../../lib/analytics';
-import {
   MESSAGE_TYPE,
   sendExtensionMessage,
   type ContextPresetManagementListData,
@@ -82,12 +74,10 @@ type SnippetFormState =
 
 interface SearchPanelCapabilities {
   enhancedCreate?: boolean;
-  filterControls?: boolean;
   workspaceLifecycleActions?: boolean;
 }
 
 interface SearchPanelContentProps {
-  analyticsSurface: Exclude<AnalyticsSurface, 'selection_tooltip'>;
   inputRef: Ref<HTMLInputElement>;
   capabilities?: SearchPanelCapabilities;
   portalContainer?: HTMLElement;
@@ -105,7 +95,6 @@ export type SearchPanelRequestSender = (
 ) => Promise<ExtensionResponse<SearchPanelData>>;
 
 export function SearchPanelContent({
-  analyticsSurface,
   inputRef,
   capabilities,
   portalContainer,
@@ -115,7 +104,6 @@ export function SearchPanelContent({
   const { locale, t } = useI18n();
   const resultsId = useId();
   const enhancedCreateEnabled = capabilities?.enhancedCreate ?? false;
-  const filterControlsEnabled = capabilities?.filterControls ?? false;
   const workspaceLifecycleActionsEnabled =
     capabilities?.workspaceLifecycleActions ?? false;
   const [kind, setKind] = useState<SearchPanelKind>('vault');
@@ -177,19 +165,6 @@ export function SearchPanelContent({
   );
 
   useEffect(() => {
-    trackAnalyticsEvent(surfaceOpened(analyticsSurface));
-  }, [analyticsSurface]);
-
-  useEffect(() => {
-    if (!filterControlsEnabled) {
-      setContexts([]);
-      setContextsError(null);
-      setContextsLoading(false);
-      setSelectedContextId(undefined);
-      setSelectedLabelFilter(undefined);
-      return;
-    }
-
     let cancelled = false;
     setContextsLoading(true);
     setContextsError(null);
@@ -219,7 +194,7 @@ export function SearchPanelContent({
     return () => {
       cancelled = true;
     };
-  }, [contextsRevision, filterControlsEnabled, locale]);
+  }, [contextsRevision, locale]);
 
   useEffect(() => {
     if (!workspaceLifecycleActionsEnabled) {
@@ -316,9 +291,6 @@ export function SearchPanelContent({
     setKeyboardSelectionActive(false);
     setPage(0);
     setRefreshKey((current) => current + 1);
-    if (nextQuery.trim()) {
-      trackAnalyticsEvent(searchSubmitted(analyticsSurface, kind));
-    }
   }
 
   function clearQuery() {
@@ -355,7 +327,7 @@ export function SearchPanelContent({
   }
 
   function toggleLabelFilter(label: LabelSummary) {
-    if (formOpen || !filterControlsEnabled) {
+    if (formOpen) {
       return;
     }
     setSelectedLabelFilter((current) =>
@@ -437,9 +409,6 @@ export function SearchPanelContent({
         ...statusMessages,
       ].join(' · '),
     });
-    trackAnalyticsEvent(
-      workspaceActionCompleted(analyticsSurface, 'extended'),
-    );
     setData(null);
     setRefreshKey((current) => current + 1);
   }
@@ -480,9 +449,6 @@ export function SearchPanelContent({
         ? { description: statusMessages.join(' · ') }
         : {}),
     });
-    trackAnalyticsEvent(
-      workspaceActionCompleted(analyticsSurface, 'promoted'),
-    );
     setData(null);
     setRefreshKey((current) => current + 1);
   }
@@ -543,7 +509,6 @@ export function SearchPanelContent({
     mode: SnippetFormState['mode'],
     continueCreating = false,
   ) {
-    trackAnalyticsEvent(snippetSaved(analyticsSurface, kind, mode));
     if (!continueCreating) {
       setFormState(null);
     }
@@ -561,7 +526,6 @@ export function SearchPanelContent({
       data={data}
       error={error}
       kind={kind}
-      labelFilteringEnabled={filterControlsEnabled}
       loading={loading}
       portalContainer={portalContainer}
       query={submittedQuery.trim()}
@@ -697,7 +661,7 @@ export function SearchPanelContent({
           </div>
         </div>
 
-        {filterControlsEnabled && !formOpen ? (
+        {!formOpen ? (
           <div className="shrink-0 space-y-2 px-4 py-2.5">
             <div
               className="flex min-w-0 flex-wrap items-center gap-1.5"

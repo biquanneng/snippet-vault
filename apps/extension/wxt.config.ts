@@ -17,6 +17,7 @@ export default defineConfig({
     "@wxt-dev/auto-icons",
     "@wxt-dev/module-react",
     "@wxt-dev/i18n/module",
+    "@wxt-dev/analytics/module",
   ],
   webExt: {
     disabled: true,

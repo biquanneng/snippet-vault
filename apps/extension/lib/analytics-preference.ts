@@ -9,8 +9,3 @@ export const analyticsEnabledStorage = storage.defineItem<boolean>(
   'local:analytics-enabled',
   { fallback: false },
 );
-
-export const analyticsClientIdStorage = storage.defineItem<string>(
-  'local:analytics-client-id',
-  { fallback: '' },
-);

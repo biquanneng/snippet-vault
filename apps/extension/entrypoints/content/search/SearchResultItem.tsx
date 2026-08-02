@@ -50,7 +50,6 @@ import { findSearchHighlightRanges } from './search-highlight';
 interface SearchResultItemProps {
   domId?: string;
   item: SearchPanelItem;
-  labelFilteringEnabled: boolean;
   listItemRef?: (node: HTMLLIElement | null) => void;
   portalContainer?: HTMLElement;
   query: string;
@@ -86,7 +85,6 @@ export async function copySearchPanelItemContent(
 export function SearchResultItem({
   domId,
   item,
-  labelFilteringEnabled,
   listItemRef,
   portalContainer,
   query,
@@ -382,11 +380,11 @@ export function SearchResultItem({
               locale,
             );
             const selected = selectedLabelId === label.id;
-            return labelFilteringEnabled ? (
+            return (
               <Badge
                 key={label.id}
                 asChild
-                variant={selected ? 'default' : 'secondary'}
+                variant={selected ? 'default' : 'outline'}
                 className="rounded-md"
               >
                 <button
@@ -397,14 +395,6 @@ export function SearchResultItem({
                 >
                   <HighlightedText text={localizedName} query={query} />
                 </button>
-              </Badge>
-            ) : (
-              <Badge
-                key={label.id}
-                variant="secondary"
-                className="rounded-md"
-              >
-                <HighlightedText text={localizedName} query={query} />
               </Badge>
             );
           })}

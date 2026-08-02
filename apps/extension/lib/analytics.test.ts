@@ -2,17 +2,21 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { surfaceOpened } from './analytics-events';
-import { buildAnalyticsRequestUrl } from './analytics-transport';
+import {
+  openInPageSearch,
+  openSidePanel,
+} from './analytics-events';
+import {
+  ANALYTICS_MEASUREMENT_ID,
+  buildAnalyticsRequestUrl,
+} from './analytics-transport';
 
 describe('analytics transport', () => {
-  it('uses the GA4 collection endpoint with the public measurement ID', () => {
-    const url = buildAnalyticsRequestUrl(surfaceOpened('side_panel'), {
+  it('sends a product-entry event without behavior properties', () => {
+    const url = buildAnalyticsRequestUrl(openSidePanel(), {
       clientId: '123.456',
       eventSequence: 2,
-      extensionVersion: '0.3.0',
-      language: 'zh-CN',
-      screenResolution: '1440x900',
+      measurementId: ANALYTICS_MEASUREMENT_ID,
       sessionId: 789,
     });
 
@@ -20,22 +24,23 @@ describe('analytics transport', () => {
     expect(url.pathname).toBe('/g/collect');
     expect(url.searchParams.get('tid')).toBe('G-3WMCRSJL96');
     expect(url.searchParams.get('cid')).toBe('123.456');
-    expect(url.searchParams.get('en')).toBe('surface_opened');
+    expect(url.searchParams.get('en')).toBe('open_side_panel');
     expect(url.searchParams.get('sid')).toBe('789');
     expect(url.searchParams.get('_s')).toBe('2');
-    expect(url.searchParams.get('ep.surface')).toBe('side_panel');
-    expect(url.searchParams.get('ep.extension_version')).toBe('0.3.0');
-    expect(url.searchParams.get('ul')).toBe('zh-CN');
-    expect(url.searchParams.get('sr')).toBe('1440x900');
+    expect(
+      [...url.searchParams.keys()].some((key) => key.startsWith('ep.')),
+    ).toBe(false);
   });
 
   it('never adds page or document metadata', () => {
-    const url = buildAnalyticsRequestUrl(surfaceOpened('in_page_search'), {
+    const url = buildAnalyticsRequestUrl(openInPageSearch(), {
       clientId: '123.456',
       eventSequence: 1,
+      measurementId: ANALYTICS_MEASUREMENT_ID,
       sessionId: 789,
     });
 
+    expect(url.searchParams.get('en')).toBe('open_in_page_search');
     expect(url.searchParams.has('dl')).toBe(false);
     expect(url.searchParams.has('dr')).toBe(false);
     expect(url.searchParams.has('dt')).toBe(false);

@@ -2,7 +2,7 @@
   "name": "snippet-vault",
   "description": "A local-first private snippet vault and temporary workspace for developers.",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MPL-2.0",
   "type": "module",
   "packageManager": "pnpm@10.24.0",
@@ -21,6 +21,7 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "@wxt-dev/analytics": "0.5.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "flexsearch": "^0.8.212",

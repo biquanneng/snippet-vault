@@ -49,9 +49,9 @@
     },
     "analytics": {
       "title": "Anonymous usage data",
-      "description": "Help improve SnippetVault by sharing a small set of product usage events with Google Analytics. This is off by default.",
+      "description": "Help improve SnippetVault by sharing how often its two search entry points are opened. This is off by default.",
       "toggle": "Share anonymous usage data",
-      "details": "When enabled, SnippetVault sends only fixed feature names and basic technical details such as app version, browser, operating system, language, and screen size. Snippet content, labels, contexts, search queries, source URLs, clipboard data, and backups are never included.",
+      "details": "When enabled, SnippetVault reports only when you open the side panel or open in-page search with double Shift. Searches and all other product actions are never reported.",
       "permissionDenied": "Google Analytics access was not granted. Anonymous usage data remains off.",
       "saveFailed": "Could not update the anonymous usage data setting."
     },

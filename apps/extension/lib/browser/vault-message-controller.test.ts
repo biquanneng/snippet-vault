@@ -1102,9 +1102,19 @@ describe('VaultMessageController', () => {
     );
   });
 
-  it('returns default context presets and supports custom context CRUD from trusted extension pages', async () => {
+  it('returns context filters to trusted content panels and keeps context CRUD on extension pages', async () => {
     const service = new FakeVaultService();
     const controller = createController(service);
+
+    await expect(
+      controller.handle(
+        { type: 'snippet-vault/get-context-preset-management' },
+        { ...trustedSender, senderId: 'other-extension' },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'UNAUTHORIZED' },
+    });
 
     await expect(
       controller.handle(
@@ -1112,8 +1122,15 @@ describe('VaultMessageController', () => {
         trustedSender,
       ),
     ).resolves.toMatchObject({
-      ok: false,
-      error: { code: 'UNAUTHORIZED' },
+      ok: true,
+      data: {
+        contextPresets: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'environment:development',
+            builtIn: true,
+          }),
+        ]),
+      },
     });
 
     await expect(
@@ -2286,32 +2303,40 @@ describe('VaultMessageController', () => {
     expect(service.vaultItems).toHaveLength(0);
   });
 
-  it('restricts workspace lifecycle mutations to trusted extension pages', async () => {
-    const service = new FakeVaultService();
-    service.workspaceItems.push({
-      id: 'workspace-protected',
-      content: 'temporary secret',
-      labelIds: [],
-      createdAt: 100,
-      updatedAt: 900,
-      expiresAt: 5_000,
-    });
-    const controller = createController(service);
+  it('allows trusted content panels to mutate workspace lifecycle while rejecting other extensions', async () => {
+    for (const type of [
+      'snippet-vault/extend-workspace-item' as const,
+      'snippet-vault/promote-workspace-item' as const,
+    ]) {
+      const service = new FakeVaultService();
+      service.workspaceItems.push({
+        id: 'workspace-protected',
+        content: 'temporary secret',
+        labelIds: [],
+        createdAt: 100,
+        updatedAt: 900,
+        expiresAt: 5_000,
+      });
+      const controller = createController(service);
+      const request = {
+        type,
+        payload: { id: 'workspace-protected', expectedUpdatedAt: 900 },
+      };
 
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/promote-workspace-item',
-          payload: { id: 'workspace-protected', expectedUpdatedAt: 900 },
-        },
-        trustedSender,
-      ),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: { code: 'UNAUTHORIZED' },
-    });
-    expect(service.workspaceItems).toHaveLength(1);
-    expect(service.vaultItems).toHaveLength(0);
+      await expect(
+        controller.handle(
+          request,
+          { ...trustedSender, senderId: 'other-extension' },
+        ),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'UNAUTHORIZED' },
+      });
+
+      await expect(
+        controller.handle(request, trustedSender),
+      ).resolves.toMatchObject({ ok: true });
+    }
   });
 
   it('allows a trusted content search panel to delete a saved item', async () => {

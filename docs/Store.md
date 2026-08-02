@@ -94,10 +94,10 @@ https://github.com/biquanneng/snippet-vault
 - **Side panel:** opens the persistent search and temporary workspace surface
   when the toolbar icon is used.
 - **Optional Google Analytics host access:** Chrome asks for this access only
-  when the user enables anonymous usage data. It sends allowlisted product
-  events and basic technical metadata to the GA4 collection endpoint,
-  never saved content, labels, contexts, queries, source metadata, clipboard
-  data, or backups.
+  when the user enables anonymous usage data. It reports only side-panel opens
+  and double-Shift in-page search opens to the GA4 collection endpoint, never
+  searches or other product actions, saved content, labels, contexts, source
+  metadata, clipboard data, or backups.
 
 ### 简体中文
 
@@ -108,9 +108,9 @@ https://github.com/biquanneng/snippet-vault
   Origin 的 IndexedDB 中。
 - **侧边栏：** 用户点击工具栏图标时，打开常驻检索与临时工作区界面。
 - **可选的 Google Analytics 主机访问：** 仅在用户主动开启匿名使用统计时，
-  Chrome 才会请求此权限；它只向 GA4 数据收集端点发送白名单内的
-  产品事件和基础技术信息，不会发送片段内容、标签、环境、搜索词、来源元数据、
-  剪贴板数据或备份。
+  Chrome 才会请求此权限；它只向 GA4 数据收集端点报告打开侧边栏，以及双击
+  `Shift` 打开页内检索，不会报告搜索和其他产品操作，也不会发送片段内容、
+  标签、环境、来源元数据、剪贴板数据或备份。
 
 ## Chrome Web Store Dashboard Submission Copy
 
@@ -176,14 +176,14 @@ chosen by the user.
 SnippetVault uses https://www.google-analytics.com/* only for optional Google
 Analytics 4 collection requests. Anonymous usage analytics is off by
 default and can be changed under Settings > General. When enabled, the
-extension first asks Chrome for this optional permission, then sends only fixed
-feature-event names, a coarse surface/record-kind enum, a random installation
-identifier, and basic technical metadata such as extension version, browser,
-operating system, language, and screen size. It
-never sends snippet content, labels, contexts, search queries, page titles,
-URLs, domains, clipboard data, backups, record IDs, expiry values, errors, or
-stack traces. Disabling analytics removes the host permission. It is restricted
-to the single GA4 collection host.
+extension first asks Chrome for this optional permission, then sends only
+open_side_panel or open_in_page_search plus a random installation identifier.
+The second event is emitted only when double-Shift successfully opens in-page
+search. It never reports searches or other product actions and never sends
+snippet content, labels, contexts, search queries, page titles, URLs, domains,
+clipboard data, backups, record IDs, expiry values, errors, or stack traces.
+Disabling analytics removes the host permission. It is restricted to the
+single GA4 collection host.
 ```
 
 ### Remote code justification
@@ -207,16 +207,16 @@ Practices form:
 - **Web history:** when a page selection is saved, the current page title, full
   URL, and domain are stored as source metadata. The extension does not monitor
   or collect general browsing history.
-- **User activity:** only after explicit opt-in, the extension sends a small
-  allowlist of feature-use events plus a random installation identifier and
-  basic technical metadata to Google Analytics 4. Queries and saved data are
-  excluded.
+- **User activity:** only after explicit opt-in, the extension reports
+  side-panel opens and double-Shift in-page search opens plus a random
+  installation identifier to Google Analytics 4. Searches, other product
+  actions, and saved data are excluded.
 
 Use these data-use certifications:
 
 - Data is used only to provide SnippetVault's single purpose.
-- Data is not sold. Opt-in anonymous usage events are processed by Google
-  Analytics 4 only to understand and improve product usage.
+- Data is not sold. The two opt-in entry-open events are processed by Google
+  Analytics 4 only to compare use of SnippetVault's search entry points.
 - Data is not used for advertising, profiling, creditworthiness, or lending.
 - Saved snippets, credentials, website content, source metadata, search
   queries, clipboard data, and backups are not transmitted off the user's
