@@ -39,6 +39,22 @@ Saved Markdown is parsed into React elements without HTML injection. Arbitrary
 raw HTML remains inert text, links are limited to `http`, `https`, and `mailto`,
 and image syntax never causes a remote image request.
 
+Local backups are readable JSON and can contain snippet contents, secrets, full
+URLs, and source metadata. Anyone who can read the exported file can read that
+data. Import is restricted to verified extension pages, strictly validated,
+previewed, and then applied as a full transactional replacement rather than a
+merge. See [Backup import and export security](docs/backup-import-export-security.md)
+for the threat and failure boundary.
+
+Anonymous usage analytics is optional and disabled by default. When enabled,
+the extension sends a small allowlist of fixed feature events plus basic
+technical metadata to Google Analytics 4. It never includes snippet content,
+labels, contexts, search queries, source metadata, clipboard data, backups,
+record IDs, errors, or stack traces. The public GA4 measurement ID is not an
+authentication credential, so analytics traffic can be forged; it does not
+protect SnippetVault data. See [Anonymous usage analytics](docs/analytics.md)
+for the event contract and failure boundary.
+
 High-priority reports include:
 
 - captured content exposed to ordinary web pages or an unauthorized extension
@@ -47,7 +63,8 @@ High-priority reports include:
   discard or return incorrect records;
 - a privacy-lock bypass if the optional UI feature is implemented;
 - sensitive values exposed to web pages or other extensions;
-- logging, telemetry, or network leakage;
+- logging, telemetry, or network leakage outside the documented analytics
+  allowlist;
 - unsafe import, export, backup, or restore behavior;
 - permission escalation or unintended page capture;
 - remote-code or dependency supply-chain compromise;

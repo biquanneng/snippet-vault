@@ -1,0 +1,741 @@
+// SPDX-License-Identifier: MPL-2.0
+
+import {
+  type ConditionalMutationReceipt,
+  type ConditionalMutationResult,
+  type ContextPreset,
+  SEARCH_SCHEMA_VERSION,
+  type ItemKind,
+  type ItemReference,
+  type Label,
+  type MutationReceipt,
+  type MutationResult,
+  type PruneReceipt,
+  type SearchResult,
+  type StoredRecord,
+  type VaultSnapshotExport,
+  type VaultSnapshot,
+  type VaultItem,
+  type WorkspaceItem,
+} from './model';
+import type { VaultRepository } from './repository';
+import {
+  createSearchDocument,
+  fromSearchDocumentId,
+  toSearchDocumentId,
+  type SearchIndex,
+} from './search-index';
+
+interface SnippetVaultServiceOptions {
+  repository: VaultRepository;
+  searchIndex: SearchIndex;
+  clock?: () => number;
+}
+
+interface RecordFilterOptions {
+  contextId?: string;
+  labelId?: string;
+}
+
+export interface SearchOptions extends RecordFilterOptions {
+  limit?: number;
+  kind?: ItemKind;
+}
+
+export interface BrowseOptions extends RecordFilterOptions {
+  offset?: number;
+  limit?: number;
+}
+
+export interface BrowsePage {
+  results: SearchResult[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+export class SnippetVaultService {
+  private readonly repository: VaultRepository;
+  private readonly searchIndex: SearchIndex;
+  private readonly clock: () => number;
+  private operationQueue: Promise<void> = Promise.resolve();
+  private readyPromise: Promise<void> | null = null;
+
+  constructor(options: SnippetVaultServiceOptions) {
+    this.repository = options.repository;
+    this.searchIndex = options.searchIndex;
+    this.clock = options.clock ?? Date.now;
+  }
+
+  saveVaultItem(item: VaultItem): Promise<MutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.putVaultItem(item);
+      return this.synchronizeRecordMutation(
+        mutation,
+        indexReady,
+        { kind: 'vault', item },
+      );
+    });
+  }
+
+  saveWorkspaceItem(item: WorkspaceItem): Promise<MutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.putWorkspaceItem(item);
+      return this.synchronizeRecordMutation(
+        mutation,
+        indexReady,
+        { kind: 'workspace', item },
+      );
+    });
+  }
+
+  saveVaultItemIfUnchanged(
+    item: VaultItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.putVaultItemIfUnchanged(
+        item,
+        expectedUpdatedAt,
+      );
+      return this.synchronizeConditionalRecordMutation(
+        mutation,
+        indexReady,
+        { kind: 'vault', item },
+      );
+    });
+  }
+
+  saveWorkspaceItemIfUnchanged(
+    item: WorkspaceItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.putWorkspaceItemIfUnchanged(
+        item,
+        expectedUpdatedAt,
+      );
+      return this.synchronizeConditionalRecordMutation(
+        mutation,
+        indexReady,
+        { kind: 'workspace', item },
+      );
+    });
+  }
+
+  saveLabel(label: Label): Promise<MutationReceipt> {
+    return this.enqueueOperation(async () => {
+      await this.tryEnsureReady();
+      const mutation = await this.repository.putLabel(label);
+      return this.rebuildAfterMutation(mutation);
+    });
+  }
+
+  saveContextPreset(preset: ContextPreset): Promise<MutationReceipt> {
+    return this.enqueueOperation(async () => {
+      await this.tryEnsureReady();
+      const mutation = await this.repository.putContextPreset(preset);
+      return this.rebuildAfterMutation(mutation);
+    });
+  }
+
+  touchLabelUsage(id: string, time: number): Promise<MutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.touchLabelUsage(id, time);
+      return this.synchronizeIndexNeutralMutation(mutation, indexReady);
+    });
+  }
+
+  deleteItem(reference: ItemReference): Promise<MutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.deleteItem(reference);
+      if (!mutation.changed) {
+        return this.toReceipt(mutation, 'synchronized');
+      }
+      if (!indexReady) {
+        return this.toReceipt(mutation, 'rebuild-required');
+      }
+
+      return this.commitIndexMutation(mutation, () => {
+        this.searchIndex.remove(toSearchDocumentId(reference));
+      });
+    });
+  }
+
+  promoteWorkspaceItem(
+    workspaceId: string,
+    vaultItem: VaultItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const indexReady = await this.tryEnsureReady();
+      const mutation = await this.repository.promoteWorkspaceItem(
+        workspaceId,
+        vaultItem,
+        expectedUpdatedAt,
+      );
+      if (!mutation.changed) {
+        return this.toConditionalReceipt(mutation, 'synchronized');
+      }
+      if (!indexReady) {
+        return this.toConditionalReceipt(mutation, 'rebuild-required');
+      }
+
+      try {
+        const { labelNames, contextPresets } = await this.getSearchMetadata();
+        return this.commitConditionalIndexMutation(mutation, () => {
+          this.searchIndex.remove(
+            toSearchDocumentId({ kind: 'workspace', id: workspaceId }),
+          );
+          this.searchIndex.upsert(
+            createSearchDocument(
+              { kind: 'vault', item: vaultItem },
+              labelNames,
+              contextPresets,
+            ),
+          );
+        });
+      } catch {
+        this.readyPromise = null;
+        return this.toConditionalReceipt(mutation, 'rebuild-required');
+      }
+    });
+  }
+
+  pruneExpired(): Promise<PruneReceipt> {
+    return this.enqueueOperation(() => this.pruneExpiredRecords());
+  }
+
+  exportSnapshot(): Promise<VaultSnapshotExport> {
+    return this.enqueueOperation(async () => {
+      await this.pruneExpiredRecords();
+      return this.repository.readSnapshotWithRevision(this.clock());
+    });
+  }
+
+  getDataRevision(): Promise<number> {
+    return this.enqueueOperation(async () => {
+      const meta = await this.repository.getMeta();
+      return meta.dataRevision;
+    });
+  }
+
+  replaceSnapshot(
+    snapshot: VaultSnapshot,
+    expectedDataRevision: number,
+  ): Promise<ConditionalMutationReceipt> {
+    return this.enqueueOperation(async () => {
+      const mutation = await this.repository.replaceSnapshot(
+        snapshot,
+        expectedDataRevision,
+      );
+      if (!mutation.changed) {
+        return this.toConditionalReceipt(mutation, 'synchronized');
+      }
+
+      const receipt = await this.rebuildAfterMutation(mutation);
+      return {
+        ...receipt,
+        outcome: mutation.outcome,
+      };
+    });
+  }
+
+  getItem(reference: ItemReference): Promise<StoredRecord | null> {
+    return this.repository.getItem(reference);
+  }
+
+  listLabels(options?: { includeArchived?: boolean }): Promise<Label[]> {
+    return this.repository.listLabels(options);
+  }
+
+  listContextPresets(
+    options?: { includeArchived?: boolean },
+  ): Promise<ContextPreset[]> {
+    return this.repository.listContextPresets(options);
+  }
+
+  search(
+    query: string,
+    options: SearchOptions = {},
+  ): Promise<SearchResult[]> {
+    return this.enqueueOperation(() => this.searchRecords(query, options));
+  }
+
+  browse(
+    kind: ItemKind,
+    options: BrowseOptions = {},
+  ): Promise<BrowsePage> {
+    return this.enqueueOperation(() => this.browseRecords(kind, options));
+  }
+
+  async close(): Promise<void> {
+    await this.operationQueue;
+    await Promise.all([this.searchIndex.close(), this.repository.close()]);
+    this.readyPromise = null;
+  }
+
+  private async searchRecords(
+    query: string,
+    options: SearchOptions,
+  ): Promise<SearchResult[]> {
+    const limit = Math.min(100, Math.max(1, options.limit ?? 50));
+    if (query.trim() && (options.contextId || options.labelId)) {
+      await this.pruneExpiredRecords();
+    }
+    const now = this.clock();
+
+    if (!query.trim()) {
+      return this.getDefaultResults(now, limit, options.kind, options);
+    }
+
+    await this.ensureReady();
+    const exactFilterSet = await this.getExactFilterSet(now, options);
+    const hits = await this.searchIndex.search(
+      query,
+      exactFilterSet?.searchCandidateLimit ?? limit,
+      options.kind,
+    );
+    const references = hits
+      .map((hit) => fromSearchDocumentId(hit.id))
+      .filter((reference): reference is ItemReference => reference !== null);
+    const records = await this.repository.getItems(references);
+    const recordById = new Map(
+      records.map((record) => [
+        toSearchDocumentId({ kind: record.kind, id: record.item.id }),
+        record,
+      ]),
+    );
+
+    const matched: SearchResult[] = [];
+    hits.forEach((hit) => {
+      const record = recordById.get(hit.id);
+      if (!record || this.isExpired(record, now)) {
+        return;
+      }
+      if (
+        exactFilterSet &&
+        !exactFilterSet.allowedDocumentIds.has(hit.id)
+      ) {
+        return;
+      }
+      matched.push({
+        ref: { kind: record.kind, id: record.item.id },
+        item: record.item,
+      });
+    });
+
+    return matched.slice(0, limit);
+  }
+
+  private async pruneExpiredRecords(): Promise<PruneReceipt> {
+    const indexReady = await this.tryEnsureReady();
+    const result = await this.repository.pruneExpired(this.clock());
+
+    if (!result.changed) {
+      return { ...result, searchStatus: 'synchronized' };
+    }
+    if (!indexReady) {
+      return { ...result, searchStatus: 'rebuild-required' };
+    }
+
+    const receipt = await this.commitIndexMutation(result, () => {
+      for (const reference of result.removed) {
+        this.searchIndex.remove(toSearchDocumentId(reference));
+      }
+    });
+    return {
+      ...result,
+      searchStatus: receipt.searchStatus,
+    };
+  }
+
+  private enqueueOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const pending = this.operationQueue.then(operation, operation);
+    this.operationQueue = pending.then(
+      () => undefined,
+      () => undefined,
+    );
+    return pending;
+  }
+
+  private async tryEnsureReady(): Promise<boolean> {
+    try {
+      await this.ensureReady();
+      return true;
+    } catch {
+      this.readyPromise = null;
+      return false;
+    }
+  }
+
+  private async ensureReady(): Promise<void> {
+    if (!this.readyPromise) {
+      this.readyPromise = this.initializeSearch().catch((error) => {
+        this.readyPromise = null;
+        throw error;
+      });
+    }
+    return this.readyPromise;
+  }
+
+  private async initializeSearch(): Promise<void> {
+    await this.searchIndex.open();
+    const meta = await this.repository.getMeta();
+    if (
+      meta.indexedRevision !== meta.dataRevision ||
+      meta.searchSchemaVersion !== SEARCH_SCHEMA_VERSION
+    ) {
+      await this.rebuildIndex();
+    }
+  }
+
+  private async rebuildIndex(): Promise<void> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const meta = await this.repository.getMeta();
+      const [records, { labelNames, contextPresets }] = await Promise.all([
+        this.repository.listActiveRecords(this.clock()),
+        this.getSearchMetadata(),
+      ]);
+
+      await this.searchIndex.clear();
+      for (const record of records) {
+        this.searchIndex.upsert(
+          createSearchDocument(record, labelNames, contextPresets),
+        );
+      }
+      await this.searchIndex.commit();
+
+      const marked = await this.repository.markSearchIndexed(
+        meta.dataRevision,
+        SEARCH_SCHEMA_VERSION,
+      );
+      if (marked) {
+        return;
+      }
+    }
+
+    throw new Error(
+      'Vault data changed repeatedly while the search index was rebuilding',
+    );
+  }
+
+  private async synchronizeRecordMutation(
+    mutation: MutationResult,
+    indexReady: boolean,
+    record: StoredRecord,
+  ): Promise<MutationReceipt> {
+    if (!mutation.changed) {
+      return this.toReceipt(mutation, 'synchronized');
+    }
+    if (!indexReady) {
+      return this.toReceipt(mutation, 'rebuild-required');
+    }
+
+    try {
+      const { labelNames, contextPresets } = await this.getSearchMetadata();
+      return this.commitIndexMutation(mutation, () => {
+        this.searchIndex.upsert(
+          createSearchDocument(record, labelNames, contextPresets),
+        );
+      });
+    } catch {
+      this.readyPromise = null;
+      return this.toReceipt(mutation, 'rebuild-required');
+    }
+  }
+
+  private async synchronizeConditionalRecordMutation(
+    mutation: ConditionalMutationResult,
+    indexReady: boolean,
+    record: StoredRecord,
+  ): Promise<ConditionalMutationReceipt> {
+    if (!mutation.changed) {
+      return this.toConditionalReceipt(mutation, 'synchronized');
+    }
+    if (!indexReady) {
+      return this.toConditionalReceipt(mutation, 'rebuild-required');
+    }
+
+    try {
+      const { labelNames, contextPresets } = await this.getSearchMetadata();
+      return await this.commitConditionalIndexMutation(mutation, () => {
+        this.searchIndex.upsert(
+          createSearchDocument(record, labelNames, contextPresets),
+        );
+      });
+    } catch {
+      this.readyPromise = null;
+      return this.toConditionalReceipt(mutation, 'rebuild-required');
+    }
+  }
+
+  private async synchronizeIndexNeutralMutation(
+    mutation: MutationResult,
+    indexReady: boolean,
+  ): Promise<MutationReceipt> {
+    if (!mutation.changed) {
+      return this.toReceipt(mutation, 'synchronized');
+    }
+    if (!indexReady) {
+      return this.toReceipt(mutation, 'rebuild-required');
+    }
+
+    try {
+      const marked = await this.repository.markSearchIndexed(
+        mutation.dataRevision,
+        SEARCH_SCHEMA_VERSION,
+        mutation.dataRevision - 1,
+      );
+      if (!marked) {
+        this.readyPromise = null;
+        return this.toReceipt(mutation, 'rebuild-required');
+      }
+      return this.toReceipt(mutation, 'synchronized');
+    } catch {
+      this.readyPromise = null;
+      return this.toReceipt(mutation, 'rebuild-required');
+    }
+  }
+
+  private async rebuildAfterMutation(
+    mutation: MutationResult,
+  ): Promise<MutationReceipt> {
+    if (!mutation.changed) {
+      return this.toReceipt(mutation, 'synchronized');
+    }
+
+    try {
+      await this.searchIndex.open();
+      await this.rebuildIndex();
+      this.readyPromise = Promise.resolve();
+      return this.toReceipt(mutation, 'synchronized');
+    } catch {
+      this.readyPromise = null;
+      return this.toReceipt(mutation, 'rebuild-required');
+    }
+  }
+
+  private async commitIndexMutation(
+    mutation: MutationResult,
+    apply: () => void,
+  ): Promise<MutationReceipt> {
+    try {
+      apply();
+      await this.searchIndex.commit();
+      const marked = await this.repository.markSearchIndexed(
+        mutation.dataRevision,
+        SEARCH_SCHEMA_VERSION,
+        mutation.dataRevision - 1,
+      );
+      if (!marked) {
+        this.readyPromise = null;
+        return this.toReceipt(mutation, 'rebuild-required');
+      }
+      return this.toReceipt(mutation, 'synchronized');
+    } catch {
+      this.readyPromise = null;
+      return this.toReceipt(mutation, 'rebuild-required');
+    }
+  }
+
+  private async commitConditionalIndexMutation(
+    mutation: ConditionalMutationResult,
+    apply: () => void,
+  ): Promise<ConditionalMutationReceipt> {
+    try {
+      apply();
+      await this.searchIndex.commit();
+      const marked = await this.repository.markSearchIndexed(
+        mutation.dataRevision,
+        SEARCH_SCHEMA_VERSION,
+        mutation.dataRevision - 1,
+      );
+      if (!marked) {
+        this.readyPromise = null;
+        return this.toConditionalReceipt(mutation, 'rebuild-required');
+      }
+      return this.toConditionalReceipt(mutation, 'synchronized');
+    } catch {
+      this.readyPromise = null;
+      return this.toConditionalReceipt(mutation, 'rebuild-required');
+    }
+  }
+
+  private async getSearchMetadata(): Promise<{
+    labelNames: Map<string, string>;
+    contextPresets: Map<string, ContextPreset>;
+  }> {
+    const [labels, contextPresets] = await Promise.all([
+      this.repository.listLabels({
+        includeArchived: true,
+      }),
+      this.repository.listContextPresets({
+        includeArchived: true,
+      }),
+    ]);
+    return {
+      labelNames: new Map(labels.map((label) => [label.id, label.name])),
+      contextPresets: new Map(
+        contextPresets.map((preset) => [preset.id, preset]),
+      ),
+    };
+  }
+
+  private async getDefaultResults(
+    now: number,
+    limit: number,
+    kind?: ItemKind,
+    filters: RecordFilterOptions = {},
+  ): Promise<SearchResult[]> {
+    const records = await this.getDefaultRecords(now, kind, filters);
+    return records
+      .sort((left, right) => this.compareDefaultRecords(left, right))
+      .slice(0, limit)
+      .map((record) => ({
+        ref: { kind: record.kind, id: record.item.id },
+        item: record.item,
+      }));
+  }
+
+  private async browseRecords(
+    kind: ItemKind,
+    options: BrowseOptions,
+  ): Promise<BrowsePage> {
+    const offset = Math.max(0, Math.floor(options.offset ?? 0));
+    const limit = Math.min(
+      50,
+      Math.max(1, Math.floor(options.limit ?? 20)),
+    );
+    const records = await this.getDefaultRecords(
+      this.clock(),
+      kind,
+      options,
+    );
+    records.sort((left, right) => this.compareDefaultRecords(left, right));
+    const results = records
+      .slice(offset, offset + limit)
+      .map((record) => ({
+        ref: { kind: record.kind, id: record.item.id },
+        item: record.item,
+      }));
+
+    return {
+      results,
+      total: records.length,
+      offset,
+      limit,
+      hasMore: offset + results.length < records.length,
+    };
+  }
+
+  private async getDefaultRecords(
+    now: number,
+    kind?: ItemKind,
+    filters: RecordFilterOptions = {},
+  ): Promise<StoredRecord[]> {
+    const records = await this.repository.listActiveRecords(now);
+    return records.filter((record) =>
+      this.matchesFilters(record, kind, filters),
+    );
+  }
+
+  private async getExactFilterSet(
+    now: number,
+    options: SearchOptions,
+  ): Promise<{
+    allowedDocumentIds: Set<string>;
+    searchCandidateLimit: number;
+  } | null> {
+    if (!options.contextId && !options.labelId) {
+      return null;
+    }
+
+    const records = await this.repository.listActiveRecords(now);
+    const allowedRecords = records.filter((record) =>
+      this.matchesFilters(record, options.kind, options),
+    );
+    const searchCandidateLimit = options.kind
+      ? records.filter((record) => record.kind === options.kind).length
+      : records.length;
+
+    return {
+      allowedDocumentIds: new Set(
+        allowedRecords.map((record) =>
+          toSearchDocumentId({ kind: record.kind, id: record.item.id }),
+        ),
+      ),
+      searchCandidateLimit,
+    };
+  }
+
+  private matchesFilters(
+    record: StoredRecord,
+    kind: ItemKind | undefined,
+    filters: RecordFilterOptions,
+  ): boolean {
+    if (kind && record.kind !== kind) {
+      return false;
+    }
+    if (filters.contextId && record.item.contextId !== filters.contextId) {
+      return false;
+    }
+    if (
+      filters.labelId &&
+      !record.item.labelIds.includes(filters.labelId)
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  private compareDefaultRecords(left: StoredRecord, right: StoredRecord): number {
+    if (left.kind !== right.kind) {
+      return left.kind === 'workspace' ? -1 : 1;
+    }
+    if (left.kind === 'workspace' && right.kind === 'workspace') {
+      return left.item.expiresAt - right.item.expiresAt;
+    }
+    if (left.kind === 'vault' && right.kind === 'vault') {
+      if (left.item.pinned !== right.item.pinned) {
+        return left.item.pinned ? -1 : 1;
+      }
+      return (
+        (right.item.lastUsedAt ?? right.item.updatedAt) -
+        (left.item.lastUsedAt ?? left.item.updatedAt)
+      );
+    }
+    return 0;
+  }
+
+  private isExpired(record: StoredRecord, now: number): boolean {
+    return record.kind === 'workspace' && record.item.expiresAt <= now;
+  }
+
+  private toReceipt(
+    mutation: MutationResult,
+    searchStatus: MutationReceipt['searchStatus'],
+  ): MutationReceipt {
+    return {
+      ...mutation,
+      searchStatus,
+    };
+  }
+
+  private toConditionalReceipt(
+    mutation: ConditionalMutationResult,
+    searchStatus: ConditionalMutationReceipt['searchStatus'],
+  ): ConditionalMutationReceipt {
+    return {
+      ...mutation,
+      searchStatus,
+    };
+  }
+}

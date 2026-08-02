@@ -2,86 +2,285 @@
 
 ## Short Description / 简短描述
 
-**EN:** Save, search, and copy your API keys, tokens, and code snippets instantly. A secure vault for developers — no more digging through .env files.
+**EN:** Save, search, and copy API keys, tokens, and code snippets locally in your browser — without digging through .env files.
 
-**ZH:** 即时保存、搜索、复制您的 API 密钥、令牌和代码片段。为开发者打造的安全保险库——告别在 .env 文件中翻找。
+**ZH:** 在浏览器本地保存、搜索和复制 API 密钥、Token 与代码片段，不再反复翻找 .env 文件。
 
 ## Detailed Description / 详细描述
 
-**EN:**
-```
-Tired of scrolling through .env files, digging in WeChat favorites, or
-grepping your terminal just to find that one API key?
+### English
 
-SnippetVault is a Chrome extension built for developers who juggle
-multiple projects. Store your API keys, tokens, code snippets, database
-URLs, and server credentials in organized folders. One click to copy,
-instant search to find, local encryption to keep it safe.
+```text
+Keep the developer text you reuse close at hand.
 
-✨ KEY FEATURES
+SnippetVault is a local-first Chrome extension for saving webpage selections
+and manually entered snippets, then finding them again when you need them.
 
-🔍 Instant Search — Type and filter your snippets in real time. No more
-scrolling through messy notes.
+✨ Save and find
 
-📋 One-Click Copy — Click any value and it's in your clipboard. Auto-
-cleared after a few seconds for security.
+- Select webpage text and save it from a lightweight tooltip, or create a
+  snippet directly in the side panel.
+- Add optional labels and a color-coded context for a project or environment.
+- Double-press Shift to search from a supported webpage, or keep search open in
+  Chrome's side panel.
+- Search by content, label, context, or source, then copy, edit, or delete the
+  result.
+- Page captures are saved as Markdown with their title, URL, and domain.
 
-📁 Project Folders — Group your keys by project, environment, or
-anything that makes sense to you.
+⏳ Temporary workspace
 
-🔒 Local Encryption — Your data never leaves your device. Built on
-Chrome's native storage encryption.
+- Let short-lived snippets expire automatically, extend them, or move them
+  permanently to the Vault.
 
-⚡ Keyboard Shortcut — Alt+V to open, start typing, done.
+🔒 Local by default
 
-🆓 100% Free & Open Source — No premium tiers, no tracking. Code on
-GitHub: github.com/yourname/snippetvault
+- No account, cloud sync, or AI service. Optional anonymous usage analytics is
+  off by default and never includes your saved data or searches.
+- Snippets stay in the extension's local IndexedDB. You can export or restore a
+  readable `.sv` JSON backup.
+- Local records and backups are not encrypted. SnippetVault is not a password
+  manager or encrypted secret vault.
 
-🎯 WHO IS THIS FOR?
+Available in English and Simplified Chinese, with light and dark themes.
 
-• Indie hackers managing keys across multiple SaaS projects
-• Backend developers switching between dev/staging/prod environments
-• Frontend developers tired of copy-pasting test tokens
-• Anyone who previously used WeChat favorites or .env files for secrets
-
-SnippetVault is your personal API key vault, token manager, and code
-snippet organizer — all in one lightweight Chrome extension.
-
-Install SnippetVault and stop losing your keys.
+SnippetVault is open source under the Mozilla Public License 2.0:
+https://github.com/biquanneng/snippet-vault
 ```
 
-**ZH:**
+### 简体中文
+
+```text
+把经常需要的开发片段留在手边。
+
+SnippetVault 是一款本地优先的 Chrome 扩展。它可以保存网页选区或手动输入的
+片段，并在需要时快速找回来。
+
+✨ 保存与检索
+
+- 选中网页文字，通过轻量 Tooltip 保存；没有来源页面时，也可以直接在侧边栏
+  新建片段。
+- 按需添加 Label，并用带颜色的环境标记项目或运行环境。
+- 在支持的网页中双击 Shift 快速检索，或把检索保持在 Chrome 侧边栏中。
+- 搜索正文、Label、环境或来源，并直接复制、编辑或删除结果。
+- 网页选区会保存为 Markdown，并记录页面标题、URL 和 Domain。
+
+⏳ 临时工作区
+
+- 让短期片段自动过期、按需延期，或者转为永久 Vault 记录。
+
+🔒 默认留在本地
+
+- 无需账号，不连接云同步或 AI 服务。匿名使用统计默认关闭，且绝不会包含保存的
+  数据或搜索词。
+- 片段保存在扩展自己的 IndexedDB 中，并支持导出或恢复可读的 `.sv` JSON 备份。
+- 本地记录和备份没有加密。SnippetVault 不是密码管理器，也不是加密的机密保险库。
+
+支持 English 和简体中文，并提供浅色和深色主题。
+
+SnippetVault 使用 Mozilla Public License 2.0 开源：
+https://github.com/biquanneng/snippet-vault
 ```
-厌倦了在 .env 文件中翻找、在微信收藏里扒拉、或在终端里 grep 半天
-只为找到那个 API 密钥？
 
-SnippetVault 是一款为同时操盘多个项目的开发者打造的 Chrome 扩展。
-将您的 API 密钥、令牌、代码片段、数据库地址和服务器凭证分门别类
-存放。一键复制，即时搜索，本地加密保安全。
+## Permission Notes / 权限说明
 
-✨ 核心功能
+### English
 
-🔍 即时搜索 —— 输入即筛选，实时定位您的代码片段，告别杂乱笔记。
+- **Read and change data on websites:** the content script runs on supported
+  pages so SnippetVault can react when the user explicitly selects content and
+  can show the in-page tooltip and search panel. It does not scan page text,
+  form fields, network traffic, or the clipboard in the background.
+- **Storage:** stores preferences and local extension state. Snippet records
+  and the search index are stored in the extension origin's IndexedDB.
+- **Side panel:** opens the persistent search and temporary workspace surface
+  when the toolbar icon is used.
+- **Optional Google Analytics host access:** Chrome asks for this access only
+  when the user enables anonymous usage data. It sends allowlisted product
+  events and basic technical metadata to the GA4 collection endpoint,
+  never saved content, labels, contexts, queries, source metadata, clipboard
+  data, or backups.
 
-📋 一键复制 —— 点击任意内容即复制到剪贴板，数秒后自动清除保障安全。
+### 简体中文
 
-📁 项目分组 —— 按项目、环境或任意方式归类您的密钥，井井有条。
+- **读取和更改网站上的数据：** Content Script 会在支持的网页中运行，用于响应
+  用户明确执行的文本选择，并显示页面内 Tooltip 和检索面板。它不会在后台扫描
+  页面正文、表单字段、网络流量或剪贴板。
+- **存储：** 用于保存偏好设置和扩展本地状态。片段记录与搜索索引保存在扩展
+  Origin 的 IndexedDB 中。
+- **侧边栏：** 用户点击工具栏图标时，打开常驻检索与临时工作区界面。
+- **可选的 Google Analytics 主机访问：** 仅在用户主动开启匿名使用统计时，
+  Chrome 才会请求此权限；它只向 GA4 数据收集端点发送白名单内的
+  产品事件和基础技术信息，不会发送片段内容、标签、环境、搜索词、来源元数据、
+  剪贴板数据或备份。
 
-🔒 本地加密 —— 数据不离开您的设备，基于 Chrome 原生存储加密。
+## Chrome Web Store Dashboard Submission Copy
 
-⚡ 键盘快捷键 —— Alt+V 唤起，输入即搜，一气呵成。
+The following text is based on the generated Chrome MV3 manifest, not only the
+source configuration. The verified manifest requests `storage`, `sidePanel`,
+and static content-script access to `<all_urls>`, and declares optional host
+access to `https://www.google-analytics.com/*`. It does not request `tabs`,
+`activeTab`, `scripting`, `clipboardRead`, `clipboardWrite`, or remote-code
+permissions.
 
-🆓 完全免费开源 —— 无付费层级，无追踪。代码托管于 GitHub。
+### Single purpose
 
-🎯 谁适合用？
-
-• 跨多个 SaaS 项目管理密钥的独立开发者
-• 在开发/测试/生产环境间切换的后端工程师
-• 厌倦了反复复制粘贴测试令牌的前端开发者
-• 任何曾用微信收藏或 .env 文件存放机密信息的人
-
-SnippetVault 是您的个人 API 密钥保险库、令牌管理器和代码片段
-收纳工具——集于一个轻量级 Chrome 扩展。
-
-安装 SnippetVault，告别密钥丢失。
+```text
+SnippetVault lets developers explicitly capture selected or manually entered
+text, organize it with optional labels and contexts, and retrieve or copy it
+later from a local search interface and temporary workspace.
 ```
+
+### `storage` justification
+
+```text
+The storage permission is used only for local extension preferences, including
+language, theme, and the default temporary-item expiry period. Snippet records,
+labels, contexts, and the local search index are stored separately in the
+extension origin's IndexedDB and are never sent to analytics or a developer
+server. If the user opts into anonymous analytics, chrome.storage also keeps
+the opt-in preference and a random installation identifier used only for GA4
+usage counts.
+```
+
+### `sidePanel` justification
+
+```text
+The sidePanel permission provides SnippetVault's persistent search, temporary
+workspace, item-management, and settings interface alongside the current web
+page. Clicking the extension toolbar icon opens this local side panel. The
+panel does not read the current page on its own and does not display remote
+content.
+```
+
+### Host access (`<all_urls>`) justification
+
+```text
+SnippetVault uses a static content script on supported web pages for two
+user-facing features: showing a save tooltip after the user explicitly selects
+page text, and opening the in-page search panel when the user double-presses
+Shift. The script reads and converts only the DOM range the user selected, and
+the selected content plus page title and URL are saved only after the user
+clicks Save. It does not scan unselected page content, read form fields,
+inspect network traffic, read the clipboard, inject advertising, or transmit
+page data.
+
+The narrower activeTab permission is insufficient because both primary
+page-level gestures must work before the user clicks the extension toolbar
+button. Restricting access to a fixed site list would also prevent the core
+capture and in-page search workflow on developer tools and documentation sites
+chosen by the user.
+```
+
+### Optional Google Analytics host access justification
+
+```text
+SnippetVault uses https://www.google-analytics.com/* only for optional Google
+Analytics 4 collection requests. Anonymous usage analytics is off by
+default and can be changed under Settings > General. When enabled, the
+extension first asks Chrome for this optional permission, then sends only fixed
+feature-event names, a coarse surface/record-kind enum, a random installation
+identifier, and basic technical metadata such as extension version, browser,
+operating system, language, and screen size. It
+never sends snippet content, labels, contexts, search queries, page titles,
+URLs, domains, clipboard data, backups, record IDs, expiry values, errors, or
+stack traces. Disabling analytics removes the host permission. It is restricted
+to the single GA4 collection host.
+```
+
+### Remote code justification
+
+```text
+SnippetVault does not use remote code. All JavaScript, CSS, search logic, and
+UI assets execute from files packaged with the extension. It does not use
+eval, download executable code, or load remotely hosted scripts or WebAssembly.
+```
+
+### Privacy-practice declarations
+
+Chrome requires local-only data handling to be disclosed as well. Based on the
+current feature set, select at least these user-data categories in the Privacy
+Practices form:
+
+- **Authentication information:** users may explicitly save API keys, tokens,
+  passwords, account identifiers, or similar developer credentials.
+- **Website content:** the extension processes and stores only text explicitly
+  selected and saved by the user.
+- **Web history:** when a page selection is saved, the current page title, full
+  URL, and domain are stored as source metadata. The extension does not monitor
+  or collect general browsing history.
+- **User activity:** only after explicit opt-in, the extension sends a small
+  allowlist of feature-use events plus a random installation identifier and
+  basic technical metadata to Google Analytics 4. Queries and saved data are
+  excluded.
+
+Use these data-use certifications:
+
+- Data is used only to provide SnippetVault's single purpose.
+- Data is not sold. Opt-in anonymous usage events are processed by Google
+  Analytics 4 only to understand and improve product usage.
+- Data is not used for advertising, profiling, creditworthiness, or lending.
+- Saved snippets, credentials, website content, source metadata, search
+  queries, clipboard data, and backups are not transmitted off the user's
+  device by the extension.
+- The developer and other humans cannot access locally stored content.
+
+If the dashboard wording changes, choose the closest broader category rather
+than omitting a disclosure. The store description and privacy policy must stay
+consistent with these selections.
+
+### Privacy policy requirement
+
+SnippetVault handles website content, source URLs, and potentially
+authentication information even though those records remain local. A public
+privacy-policy URL is therefore required before submission. The policy must
+state the same storage boundary, the readable `.sv` backup behavior, the
+default-off GA4 event and technical-metadata boundary, Google's role as the
+analytics processor, how users can withdraw analytics consent, and how users
+can delete their local data. Do not submit with a placeholder URL.
+
+## Listing Consistency Check
+
+Checked against the current source and generated Chrome MV3 manifest on
+2026-08-02:
+
+- The short descriptions exactly match the localized Manifest descriptions.
+- The detailed description matches the implemented selection Tooltip,
+  Double-Shift panel, Chrome side panel, optional labels and contexts, exact
+  side-panel filters, temporary expiry and extension, one-way promotion to the
+  Vault, and local backup replacement flow.
+- The `.sv` backup is readable JSON, not encrypted, and import replaces rather
+  than merges business data. The description now states the extension.
+- Manual records do not invent source metadata; page title, full URL, and domain
+  are added only to explicitly saved page selections.
+- The product makes no account, cloud-sync, AI-service, encryption,
+  password-manager, or secure-deletion claim. Optional GA4 usage analytics is
+  disclosed as off by default and excludes saved data and searches.
+- The permission explanations match the generated manifest: `storage`,
+  `sidePanel`, `<all_urls>` content-script access, and the single GA4 collection
+  host as an optional permission.
+
+Remaining submission blocker: publish and supply the final privacy-policy URL.
+
+## Graphic Asset Status
+
+- Store icon: generated from the real SnippetVault application icon.
+- Screenshots: five English `1280x800` images generated from the user-prepared
+  source captures without internal cropping.
+- Small promotional tile: `440x280`, rendered to
+  `apps/media/output/chrome-store/promo/small-promo.png`.
+- Marquee promotional image: `1400x560`, rendered to
+  `apps/media/output/chrome-store/promo/marquee.png`.
+
+The promotional tiles are global rather than locale-specific. They use short
+English-first copy, the real icon, and the same charcoal-and-lime identity as
+the screenshot set.
+
+## Official Chrome References
+
+- [Chrome Web Store Program Policies](https://developer.chrome.com/docs/webstore/program-policies/policies)
+- [Chrome Web Store User Data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq)
+- [Limited Use policy](https://developer.chrome.com/docs/webstore/program-policies/limited-use)
+- [`chrome.sidePanel`](https://developer.chrome.com/docs/extensions/reference/api/sidePanel)
+- [`chrome.storage`](https://developer.chrome.com/docs/extensions/reference/api/storage)
+- [Match patterns and `<all_urls>`](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns)
+- [Cross-origin network requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)
+- [Chrome extension GA4 integration](https://developer.chrome.com/docs/extensions/how-to/integrate/google-analytics-4)
