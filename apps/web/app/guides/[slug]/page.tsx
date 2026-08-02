@@ -196,8 +196,8 @@ export default async function SnippetVaultGuidePage({
                   Explore the SnippetVault direction
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  See the planned browser-side-panel workflow and current
-                  pre-release scope.
+                  See the implemented Chrome workflow and its current local
+                  data boundary.
                 </p>
               </div>
               <Link

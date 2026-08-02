@@ -5,7 +5,7 @@ category: Security
 primaryKeyword: where to store api keys
 searchIntent: Informational
 publishedAt: "2026-07-29"
-updatedAt: "2026-07-29"
+updatedAt: "2026-08-02"
 readingTime: 9 min read
 order: 2
 ---
@@ -142,10 +142,10 @@ Do not store private API keys in:
 - Public build variables
 - Wiki pages and ordinary documents
 - Email, chat, issue trackers, or support tickets
-- Browser local storage
+- Browser storage for production or high-privilege private keys
 - Shell history
 - Logs, analytics events, or URLs
-- Generic code snippet libraries
+- Generic code snippet libraries for production or high-privilege private keys
 
 If a key has already appeared in one of these places, assume it may have been copied. Revoke or rotate it instead of only deleting the visible occurrence.
 
@@ -153,7 +153,7 @@ If a key has already appeared in one of these places, assume it may have been co
 
 A developer snippet manager can store reusable commands, key names, placeholder-based request templates, setup notes, source links, and explicitly non-sensitive sandbox references. It should help a developer recover context, not become the authority for production credentials.
 
-SnippetVault is currently pre-release and is being designed around browser-side retrieval for individual developers. It is not a production secret manager and should not be presented as one.
+SnippetVault's current Chrome build keeps records and its derived search index as readable data in the extension's local IndexedDB. It supports double-Shift search, Chrome's side panel, optional labels and contexts, expiring temporary items, and manual readable backups. It is not a production secret manager and should not be presented as one.
 
 For the wider lifecycle—restrictions, least privilege, rotation, monitoring, and incident response—read [API Key Security Best Practices: A Practical Checklist for Developers](/snippetvault/guides/api-key-security-best-practices).
 

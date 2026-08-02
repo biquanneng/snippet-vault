@@ -258,7 +258,14 @@ Checked against the current source and generated Chrome MV3 manifest on
   `sidePanel`, `<all_urls>` content-script access, and the single GA4 collection
   host as an optional permission.
 
-Remaining submission blocker: publish and supply the final privacy-policy URL.
+The privacy policy is implemented in `apps/web` at the intended public URL:
+
+```text
+https://biqn.dev/snippetvault/privacy
+```
+
+Before submission, deploy the web app and verify that this exact URL is public,
+loads without authentication, and points directly to the privacy policy.
 
 ## Graphic Asset Status
 

@@ -3,6 +3,7 @@
 import {
   Clipboard,
   Command,
+  Database,
   KeyRound,
   Layers3,
   PanelRight,
@@ -15,48 +16,58 @@ export const comparisonRows = [
     label: "Best at",
     env: "Runtime configuration inside one project",
     chats: "Capturing something in the moment",
-    snippetVault: "Planned cross-project reference",
+    snippetVault: "Personal cross-project reference",
   },
   {
     label: "Finding it again",
     env: "Open the right repository and file",
     chats: "Search or scroll through conversations",
-    snippetVault: "Planned side-panel search",
+    snippetVault: "Double-Shift or persistent side-panel search",
   },
   {
     label: "Context",
     env: "Implied by its file path",
     chats: "Mixed with the conversation",
-    snippetVault: "Planned project and environment labels",
+    snippetVault: "Optional labels plus project and environment context",
   },
   {
     label: "Reuse",
     env: "Find, select, and copy",
     chats: "Reopen, locate, and copy",
-    snippetVault: "Planned quick lookup and reuse",
+    snippetVault: "Copy, edit, delete, and filter in place",
   },
 ] as const;
 
-export const plannedFeatures = [
+export const currentFeatures = [
   {
-    title: "Quick capture",
-    body: "Save a development value or reusable fragment you expect to look up again.",
+    title: "Capture",
+    body: "Save an explicit webpage selection as Markdown with source metadata, or create a source-free snippet directly.",
     icon: Clipboard,
   },
   {
-    title: "Useful context",
-    body: "Organize planned snippets by project, environment, or purpose.",
+    title: "Organize",
+    body: "Add optional labels and a color-coded context, then use either one as a direct filter.",
     icon: Tags,
   },
   {
-    title: "Fast filtering",
-    body: "Search the planned vault from a Chrome side panel while the current page stays open.",
+    title: "Retrieve",
+    body: "Search content, labels, context, and source from double-Shift in-page search or Chrome's side panel.",
     icon: Search,
   },
   {
-    title: "Direct reuse",
-    body: "Bring the selected value back into the task at hand with minimal context switching.",
+    title: "Reuse",
+    body: "Copy a result immediately, or edit and delete it without leaving the result list.",
     icon: Command,
+  },
+  {
+    title: "Expire or keep",
+    body: "Let temporary items expire, extend them by the configured period, or promote them permanently to the Vault.",
+    icon: Layers3,
+  },
+  {
+    title: "Back up locally",
+    body: "Export readable .sv JSON and preview a backup before it fully replaces local business data.",
+    icon: Database,
   },
 ] as const;
 
@@ -79,10 +90,10 @@ export const useCases = [
 ] as const;
 
 export const principles = [
-  "Open source — MPL-2.0 licensed, community-driven",
-  "Local-first is the planned default",
-  "No account required for the first version",
-  "Focused on individual developers, not teams",
+  "Open source under MPL-2.0",
+  "Readable local IndexedDB storage",
+  "No account, hosted database, or cloud sync",
+  "Optional analytics is off by default",
 ] as const;
 
 export const faqItems = [
@@ -92,28 +103,28 @@ export const faqItems = [
       "A developer snippet manager keeps frequently reused text, configuration values, commands, and code fragments organized and searchable — accessible right from your browser while you work.",
   },
   {
-    question: "What is SnippetVault being designed for?",
+    question: "What can SnippetVault do today?",
     answer:
-      "SnippetVault helps you organize API keys, test tokens, environment values, commands, and reusable code snippets, then find them fast from a Chrome or Edge side panel without leaving your current tab.",
+      "SnippetVault can save selected webpage text or manually entered Markdown, organize it with optional labels and contexts, search it from double-Shift or Chrome's side panel, manage expiring temporary items, and import or export readable local backups.",
   },
   {
     question: "When will SnippetVault be available?",
     answer:
-      "SnippetVault is under active development as an open-source project. It will be distributed through the Chrome Web Store and Edge Add-ons marketplace once the first version is ready. Star the GitHub repo to follow along.",
+      "The Chrome MVP is implemented in the open-source repository and the Chrome Web Store listing is being prepared. Until the official listing is published, follow the repository for release status and source build instructions.",
   },
   {
     question: "Is SnippetVault safe for storing production secrets?",
     answer:
-      "SnippetVault is focused on personal development and sandbox references. It is not designed for production credentials or enterprise secret management. Storage and encryption details will be documented transparently as the open-source project evolves.",
+      "SnippetVault stores records and search data as readable plaintext in the browser profile, and exported backups are readable JSON. It is not a password manager or production secret manager. Use it only when you accept that local machine access, malware, or extension DevTools can read the data.",
   },
   {
-    question: "Will SnippetVault sync data to the cloud?",
+    question: "Does SnippetVault sync data to the cloud?",
     answer:
-      "The planned first version is local-first. Cloud synchronization has not been committed to, but as an open-source project, the community can influence this direction.",
+      "No. Snippet records stay in the extension's local IndexedDB. SnippetVault has no account, hosted snippet database, or cloud sync. You can manually export and restore a readable .sv JSON backup.",
   },
   {
-    question: "How does SnippetVault compare with massCode?",
+    question: "What data leaves my browser?",
     answer:
-      "SnippetVault takes a different approach — browser side-panel first, designed for quick lookup while you work. As an open-source project, it welcomes community contributions to help shape its direction.",
+      "Saved snippets, labels, contexts, searches, source metadata, clipboard data, and backups do not leave your browser through SnippetVault. Optional analytics is off by default and, when enabled, sends only side-panel opens and successful double-Shift search opens to Google Analytics 4.",
   },
 ] as const;

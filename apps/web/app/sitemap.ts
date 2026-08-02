@@ -18,6 +18,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.7,
     },
+    {
+      url: `${SNIPPETVAULT_URL}/privacy`,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: `${SNIPPETVAULT_URL}/terms`,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
     ...guides.map((guide) => ({
       url: `${SNIPPETVAULT_URL}/guides/${guide.slug}`,
       lastModified: guide.updatedAt,

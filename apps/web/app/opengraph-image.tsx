@@ -3,7 +3,7 @@
 import { ImageResponse } from "next/og";
 
 export const alt =
-  "SnippetVault — Developer Snippet Manager — Chrome side-panel product concept";
+  "SnippetVault — Local-first developer snippet manager for Chrome";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -39,7 +39,7 @@ export default function OpenGraphImage() {
         >
           <div
             style={{
-              background: "#c86b28",
+              background: "#84cc16",
               height: 18,
               width: 18,
             }}
@@ -50,7 +50,7 @@ export default function OpenGraphImage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <div
             style={{
-              color: "#9b4f1d",
+              color: "#4d7c0f",
               display: "flex",
               fontSize: 20,
               fontWeight: 700,
@@ -58,7 +58,7 @@ export default function OpenGraphImage() {
               textTransform: "uppercase",
             }}
           >
-            Early concept · Chrome side panel
+            Open source · Chrome MV3
           </div>
           <div
             style={{
@@ -81,8 +81,8 @@ export default function OpenGraphImage() {
               maxWidth: 630,
             }}
           >
-            API keys, test tokens, environment values, and reusable code — one
-            searchable concept.
+            Capture selected text, keep temporary work, and retrieve reusable
+            snippets without leaving the page.
           </div>
         </div>
 
@@ -106,7 +106,7 @@ export default function OpenGraphImage() {
       >
         <div
           style={{
-            color: "#9b4f1d",
+            color: "#4d7c0f",
             display: "flex",
             fontSize: 17,
             fontWeight: 700,
@@ -115,7 +115,7 @@ export default function OpenGraphImage() {
           }}
         >
           Quick find
-          <span style={{ color: "#77766e" }}>Product concept</span>
+          <span style={{ color: "#77766e" }}>Local-first</span>
         </div>
         <div
           style={{

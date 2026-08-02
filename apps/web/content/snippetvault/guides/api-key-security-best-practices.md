@@ -5,7 +5,7 @@ category: Security
 primaryKeyword: api key security best practices
 searchIntent: Commercial
 publishedAt: "2026-07-29"
-updatedAt: "2026-07-29"
+updatedAt: "2026-08-02"
 readingTime: 10 min read
 order: 1
 ---
@@ -14,7 +14,7 @@ Most API key leaks don't start with someone cracking HashiCorp Vault. They start
 
 The real security problem isn't just where keys are stored at rest. It's that developer keys are scattered across too many surfaces, and the fragments are hard to recover, harder to audit, and impossible to revoke cleanly.
 
-SnippetVault is a pre-release, open-source developer snippet manager designed to fix this: a single, local-first place for your development API keys, test tokens, environment values, commands, and reusable fragments—searchable from a Chrome or Edge side panel without leaving your current tab. It is not a production secret manager. It is the missing layer between "I saved it somewhere" and "I know exactly where it is."
+SnippetVault is an open-source developer snippet manager built for this gap: a single, local-first place for development API keys, test tokens, environment values, commands, and reusable fragments—searchable with double-Shift or from Chrome's side panel without leaving the current tab. It is not a production secret manager. It is the missing layer between "I saved it somewhere" and "I know exactly where it is."
 
 This guide covers the API key security practices every developer should follow, and shows where a tool like SnippetVault fits into each step.
 
@@ -49,7 +49,7 @@ PAYMENTS_API_KEY=YOUR_TEST_KEY
 
 Store the real value outside the repository. Add `.env.local` to `.gitignore`, but remember that ignoring a file prevents an accidental commit—it does not encrypt the file, control access, rotate the key, or detect misuse.
 
-**Where SnippetVault helps:** instead of the real key living in an untracked file you might accidentally share or lose, keep it in a local vault that's isolated from your project directory. The key is findable when you need it, and your git working tree stays clean.
+**Where SnippetVault helps:** for a low-privilege development or sandbox value you have chosen to keep locally, SnippetVault keeps it outside the project directory and makes it easier to retrieve. This improves organization, not protection at rest: SnippetVault stores records as readable data in the browser profile. Use an operating-system credential store or development secret tool when the value needs stronger protection.
 
 If a real key was committed, removing the line is not enough. Revoke or rotate the key first.
 
@@ -85,7 +85,7 @@ Do not reuse one broad key across local development, staging, production, person
 
 Issue separate credentials for each application, environment, and CI job. This separation reduces blast radius and lets you revoke one compromised key without interrupting unrelated systems.
 
-**Where SnippetVault helps:** organize keys by project and environment tag inside the vault. The side panel shows you the development key for project A, not the staging key for project B—because the context label is right there.
+**Where SnippetVault helps:** organize keys with optional labels for what a value is and a context for the project or environment where it belongs. Click either one in the result list to narrow the current search.
 
 ## 5. Apply least privilege and provider restrictions
 
@@ -101,7 +101,7 @@ Long-lived static keys remain usable until someone rotates or revokes them. When
 
 Static API keys are sometimes unavoidable. In that case, make ownership, expiry expectations, and rotation procedures explicit.
 
-**Where SnippetVault helps:** tag entries with expiry dates and rotation notes. When a key is due for rotation, you'll see it when you retrieve it—not when it breaks in production.
+**Where SnippetVault helps:** keep rotation notes with the reusable content. For a short-lived development value, use the Temporary workspace so its expiry is explicit and can be extended when needed.
 
 ## 7. Rotate keys without causing an outage
 
@@ -157,14 +157,14 @@ The gap SnippetVault fills: you already have a production secret manager. But yo
 
 - **Local-first:** data stays on your machine. No cloud upload, no account required.
 - **Browser side panel:** search and retrieve without leaving your current tab.
-- **Organized by context:** tag entries by project, environment, and purpose so you find the right key the first time.
+- **Organized for retrieval:** use optional labels for what a snippet is and a context for the project or environment where it belongs.
 - **Open source:** MPL-2.0 licensed. Built in the open at [github.com/biquanneng/snippet-vault](https://github.com/biquanneng/snippet-vault).
 
 ## Frequently asked questions
 
 ### Is it safe to store API keys in environment variables?
 
-Environment variables are a delivery mechanism, not a complete secret management system. They can keep values out of source code, but they may still be exposed through process inspection, crash reports, logs, or deployment configuration. Use a secret store to control production values. For local development, SnippetVault keeps keys out of your shell profile and project directory entirely.
+Environment variables are a delivery mechanism, not a complete secret management system. They can keep values out of source code, but they may still be exposed through process inspection, crash reports, logs, or deployment configuration. Use a secret store to control production values. For a low-privilege local development value, SnippetVault can keep it out of your shell profile and project directory, but the browser copy is still readable plaintext.
 
 ### How often should API keys be rotated?
 
@@ -189,4 +189,4 @@ A Chrome extension is client-side software—users can inspect its package and r
 - [GitHub Actions: Using secrets in workflows](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
 - [How to Organize Code Snippets Across Multiple Projects](/snippetvault/guides/organize-code-snippets-across-projects)
 
-> **The practical boundary:** production secrets belong in infrastructure designed for access control and audit. Development keys, tokens, and reusable fragments belong somewhere you can find them. SnippetVault is being built for the second problem.
+> **The practical boundary:** production secrets belong in infrastructure designed for access control and audit. Development keys, tokens, and reusable fragments belong somewhere you can find them. SnippetVault is built for the second problem.

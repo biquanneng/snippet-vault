@@ -4,7 +4,7 @@ import { ArrowRight, Check, Github, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import {
   comparisonRows,
-  plannedFeatures,
+  currentFeatures,
   principles,
   useCases,
 } from "@/lib/snippetvault/content";
@@ -53,11 +53,11 @@ export function ComparisonSection() {
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-lime-900 dark:text-foreground">SnippetVault</span>
                       <span className="inline-flex items-center rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-black">
-                        Target
+                        Current
                       </span>
                     </div>
                     <span className="block text-xs font-medium text-lime-800 dark:text-brand mt-0.5">
-                      Planned direction
+                      Implemented workflow
                     </span>
                   </th>
                 </tr>
@@ -91,10 +91,10 @@ export function ComparisonSection() {
   );
 }
 
-export function PlannedFlowSection() {
+export function CurrentFlowSection() {
   return (
     <section
-      id="concept"
+      id="workflow"
       className="sv-reveal scroll-mt-24 border-b bg-secondary py-20 sm:py-28"
     >
       <SnippetVaultContainer>
@@ -103,13 +103,13 @@ export function PlannedFlowSection() {
             Capture. Context. Search. Reuse.
           </h2>
           <p className="mt-5 text-pretty text-base leading-7 text-muted-foreground">
-            A deliberately narrow planned flow for the small pieces of
-            development context that are annoying to recover.
+            A deliberately narrow workflow for the small pieces of development
+            context that are annoying to recover.
           </p>
         </div>
 
         <div className="mt-12 border-t">
-          {plannedFeatures.map((feature) => {
+          {currentFeatures.map((feature) => {
             const Icon = feature.icon;
             return (
               <article
@@ -124,7 +124,7 @@ export function PlannedFlowSection() {
                   {feature.body}
                 </p>
                 <span className="text-sm font-medium text-lime-700 dark:text-brand sm:col-span-1 sm:text-right">
-                  Planned
+                  Current
                 </span>
               </article>
             );
@@ -147,8 +147,8 @@ export function UseCasesSection() {
             Built around the moments that break your flow.
           </h2>
           <p className="mt-5 text-pretty text-lg leading-8 text-muted-foreground">
-            The concept starts with individual developers moving between
-            projects, environments, docs, dashboards, and debugging sessions.
+            Built for individual developers moving between projects,
+            environments, docs, dashboards, and debugging sessions.
           </p>
         </div>
 
@@ -186,9 +186,9 @@ export function TrustSection() {
             Open source, local-first, and transparent by default.
           </h2>
           <p className="mt-5 text-pretty text-lg leading-8 text-muted-foreground">
-            The first version is focused on personal development and sandbox
-            references. Every design decision is made in the open — storage,
-            encryption, and sync included.
+            The current build keeps records and search data in readable local
+            browser storage. It has no account or cloud sync, and its narrow
+            optional analytics is disabled by default.
           </p>
         </div>
 
@@ -229,8 +229,8 @@ export function ClosingSection() {
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-primary-foreground/60">
               SnippetVault is built in the open. Follow development on GitHub
-              and X for build notes, scope decisions, and the moment the
-              extension ships on Chrome Web Store and Edge Add-ons.
+              and X for build notes, scope decisions, and the official Chrome
+              Web Store release.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row lg:col-span-4 lg:justify-end">

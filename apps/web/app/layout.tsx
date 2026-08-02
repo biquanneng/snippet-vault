@@ -25,7 +25,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://biqn.dev"),
+  metadataBase: new URL(`${SNIPPETVAULT_URL}/`),
   title: SNIPPETVAULT_TITLE,
   description: SNIPPETVAULT_DESCRIPTION,
   keywords: SNIPPETVAULT_KEYWORDS,

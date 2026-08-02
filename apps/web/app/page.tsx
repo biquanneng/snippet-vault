@@ -6,7 +6,7 @@ import { SnippetVaultHero } from "@/components/snippetvault/hero";
 import {
   ClosingSection,
   ComparisonSection,
-  PlannedFlowSection,
+  CurrentFlowSection,
   TrustSection,
   UseCasesSection,
 } from "@/components/snippetvault/landing-sections";
@@ -37,7 +37,7 @@ export default function SnippetVaultPage() {
     "@type": "SoftwareApplication",
     name: SNIPPETVAULT_NAME,
     applicationCategory: "DeveloperApplication",
-    operatingSystem: "Chrome, Edge",
+    operatingSystem: "Chrome",
     description: SNIPPETVAULT_DESCRIPTION,
     url: SNIPPETVAULT_URL,
     author: {
@@ -59,7 +59,7 @@ export default function SnippetVaultPage() {
     <>
       <SnippetVaultHero />
       <ComparisonSection />
-      <PlannedFlowSection />
+      <CurrentFlowSection />
       <UseCasesSection />
       <TrustSection />
       <SnippetVaultGuidesSection />

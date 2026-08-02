@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 
 /* SnippetVault 动效 */
-/* 目标平台 Chrome / Edge，animation-timeline 支持良好 */
+/* 目标平台为 Chrome，animation-timeline 支持良好 */
 
 /* ── Hero 逐层入场 ── */
 @keyframes sv-hero-enter {

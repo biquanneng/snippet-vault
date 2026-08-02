@@ -25,7 +25,7 @@ export function SnippetVaultFooter() {
             </a>
           </p>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <Link
             href="/guides"
             className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 rounded"
@@ -48,6 +48,18 @@ export function SnippetVaultFooter() {
             className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 rounded"
           >
             X
+          </Link>
+          <Link
+            href="/privacy"
+            className="rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+          >
+            Privacy
+          </Link>
+          <Link
+            href="/terms"
+            className="rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+          >
+            Terms
           </Link>
           <a
             href="https://biqn.dev/about"

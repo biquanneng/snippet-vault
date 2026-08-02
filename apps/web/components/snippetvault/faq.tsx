@@ -20,8 +20,8 @@ export function SnippetVaultFaq() {
             Frequently asked questions
           </h2>
           <p className="mt-5 text-base leading-7 text-muted-foreground">
-            Honest answers about what SnippetVault is, where it&apos;s headed, and
-            what to expect from an open-source project in its early stages.
+            Clear answers about the current Chrome build, its local data
+            boundary, and what remains before public release.
           </p>
         </div>
 

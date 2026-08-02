@@ -5,7 +5,7 @@ category: Workflow
 primaryKeyword: organize code snippets
 searchIntent: Informational
 publishedAt: "2026-07-29"
-updatedAt: "2026-07-29"
+updatedAt: "2026-08-02"
 readingTime: 6 min read
 order: 3
 ---
@@ -20,23 +20,23 @@ Capture those likely retrieval cues as metadata. A small set of consistent label
 
 ## Give every snippet minimum context
 
-A useful title describes the job rather than the syntax. “Replay Stripe test webhook” is easier to recover than “curl command.” The body can contain the reusable fragment, while a short note records where it came from and what must be changed before use.
+A useful opening line describes the job rather than only the syntax. “Replay Stripe test webhook” is easier to recover than an unexplained curl command. Keep the reusable fragment and the minimum safety note together in the Markdown content.
 
-- Job: what the fragment helps you accomplish
-- Project or service: where it is relevant
-- Environment: local, development, staging, or sandbox
-- Source: documentation, repository, issue, or dashboard
-- Safety note: placeholders, expiry, or values that must never be production data
+- Content: what the fragment does and the value or template to reuse
+- Label: optionally describe what it is, such as Command, Endpoint, Token, or Note
+- Context: optionally identify the project, provider, or environment where it belongs
+- Source: keep the captured page title, URL, and domain when they help establish trust
+- Lifetime: use the Temporary workspace when the value should expire
 
 ## Separate templates from live values
 
-Templates age better than copied credentials. Prefer placeholders such as `YOUR_TEST_TOKEN` or `PROJECT_ID` when the structure is what you need to preserve. If a temporary development value is genuinely useful, label its environment and expected lifetime.
+Templates age better than copied credentials. Prefer placeholders such as `YOUR_TEST_TOKEN` or `PROJECT_ID` when the structure is what you need to preserve. If a temporary development value is genuinely useful, assign the right context and keep it in the Temporary workspace so its expiry remains explicit.
 
 This separation also makes sharing safer. A reusable request template can move between projects or teammates without carrying the authority of the original account.
 
 ## Review by use, not by calendar
 
-A large scheduled cleanup is easy to postpone. A better maintenance rule is to improve a snippet when you use it. Fix its title, remove stale values, add missing context, or delete it when the original system has changed.
+A large scheduled cleanup is easy to postpone. A better maintenance rule is to improve a snippet when you use it. Clarify its opening line, remove stale values, add a missing label or context, or delete it when the original system has changed.
 
 Over time, frequently used snippets become clearer while low-value fragments naturally stop receiving attention. That keeps the library shaped by actual work instead of archival ambition.
 
@@ -52,15 +52,16 @@ Before saving, ask:
 
 If the answer to the third question is no, copy the minimal reproducible structure and link to the source you would otherwise need to find again.
 
-## Maintain a personal namespace
+## Keep each metadata field focused
 
-A small shared convention helps separate your snippets from noise. A common approach is a prefix that signals ownership or purpose:
+A small, consistent taxonomy makes filtering faster:
 
-- `my/` — personal snippets you maintain
-- `tmp/` — fragments with known expiry or limited confidence
-- `ref/` — stable reference material copied from documentation
+- Use a label for what the snippet is: Command, Endpoint, Token, Note, or another reusable type.
+- Use a context for where it belongs: a project, provider, development environment, staging environment, or sandbox.
+- Use the Temporary workspace for short-lived fragments instead of encoding expiry into a label.
+- Let captured source metadata answer where a webpage selection came from.
 
-You do not need a complex taxonomy. Three consistent prefixes can reduce the friction of deciding where something belongs.
+Labels and contexts are optional. Add them only when they will help you retrieve or trust the snippet later.
 
 ## Frequently asked questions
 

@@ -8,7 +8,7 @@ import { SnippetVaultContainer } from "./container";
 
 const navigation = [
   { label: "Why", href: "/#why" },
-  { label: "Planned flow", href: "/#concept" },
+  { label: "Workflow", href: "/#workflow" },
   { label: "Use cases", href: "/#use-cases" },
   { label: "Guides", href: "/guides" },
   { label: "FAQ", href: "/#faq" },
@@ -71,7 +71,7 @@ export function SnippetVaultHeader() {
             className="size-1.5 rounded-full bg-brand"
             aria-hidden="true"
           />
-          Pre-release
+          Chrome MVP
         </span>
       </SnippetVaultContainer>
     </header>

@@ -20,7 +20,7 @@
     "build:cloudflare": "node scripts/check-css-boundaries.mjs && node scripts/generate-snippetvault-content-data.mjs && opennextjs-cloudflare build",
     "preview": "pnpm build:cloudflare && opennextjs-cloudflare preview",
     "upload": "pnpm build:cloudflare && opennextjs-cloudflare upload",
-    "deploy": "pnpm build:cloudflare && opennextjs-cloudflare deploy",
+    "deploy": "pnpm build:cloudflare && opennextjs-cloudflare deploy --secrets-file .env.production",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
