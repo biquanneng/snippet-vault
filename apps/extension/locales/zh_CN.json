@@ -24,7 +24,7 @@
       "back": "返回设置",
       "general": {
         "title": "通用",
-        "description": "语言与主题"
+        "description": "语言、主题与页面例外"
       },
       "workspace": {
         "title": "环境与工作区",
@@ -46,6 +46,27 @@
     "language": {
       "title": "语言",
       "description": "选择 SnippetVault 各个界面使用的语言。"
+    },
+    "selectionTooltipSuppression": {
+      "title": "选区提示例外",
+      "description": "在指定页面或网站隐藏保存提示，同时保留页内检索能力。",
+      "loading": "正在加载例外规则",
+      "loadFailed": "选区提示例外加载失败，已保存的规则不会被误判为空列表。",
+      "retry": "重试",
+      "empty": "还没有添加任何例外。",
+      "emptyHint": "在任意页面的选区提示中点击隐藏按钮即可将当前页面或网站加入例外列表。",
+      "pageScope": "页面",
+      "siteScope": "网站",
+      "ruleCount": "共 {count} 条例外",
+      "remove": "移除例外",
+      "removed": "例外已移除",
+      "clearAll": "清空全部例外",
+      "clearTitle": "清空所有选区提示例外？",
+      "clearDescription": "所有已打开且受支持的页面和网站都会恢复选区提示。",
+      "cancel": "取消",
+      "confirmClear": "全部清空",
+      "cleared": "已清空全部例外",
+      "writeFailed": "选区提示例外更新失败，原有列表保持不变。"
     },
     "analytics": {
       "title": "匿名使用数据",
@@ -215,6 +236,18 @@
     "environmentSelectLabel": "选择环境；该值会被保存并参与检索",
     "environmentPlaceholder": "环境",
     "environmentNone": "不指定环境",
+    "suppression": {
+      "menuLabel": "选区提示选项",
+      "pageAction": "在此页面不显示",
+      "siteAction": "在此网站不显示",
+      "siteUnavailable": "当前页面不支持针对整个网站隐藏",
+      "pageSaved": "已在此页面隐藏选区提示",
+      "siteSaved": "已在此网站隐藏选区提示",
+      "undo": "撤销",
+      "restored": "选区提示已恢复",
+      "saveFailed": "选区提示例外保存失败",
+      "undoFailed": "选区提示恢复失败"
+    },
     "save": "保存"
   },
   "search": {

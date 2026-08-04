@@ -12,6 +12,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  EyeOff,
   LoaderCircle,
   Plus,
 } from "lucide-react";
@@ -21,6 +22,11 @@ import { Badge } from "../../components/ui/badge";
 import { ContextMarker } from "../../components/context-marker";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../../components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -60,6 +66,10 @@ import {
 import { toIntlLocale, type SupportedLocale } from "../../lib/i18n-catalog";
 import { useI18n } from "../../lib/use-i18n";
 import { cn } from "../../lib/utils";
+import type {
+  SelectionTooltipSuppressionRule,
+  SelectionTooltipSuppressionScope,
+} from "../../lib/selection-tooltip-suppression";
 
 const VIEWPORT_GUTTER = 24;
 const ESTIMATED_TOOLTIP_SIZE = {
@@ -74,9 +84,21 @@ const CLOSING_ANIMATION_MS = 150;
 
 interface SelectionTooltipProps {
   portalContainer: HTMLElement;
+  canSuppressSite: boolean;
+  onSuppress: (
+    scope: SelectionTooltipSuppressionScope,
+  ) => Promise<SelectionTooltipSuppressionRule>;
+  onRestoreSuppression: (
+    rule: SelectionTooltipSuppressionRule,
+  ) => Promise<void>;
 }
 
-export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
+export function SelectionTooltip({
+  portalContainer,
+  canSuppressSite,
+  onSuppress,
+  onRestoreSuppression,
+}: SelectionTooltipProps) {
   const { locale, t } = useI18n();
   const tooltipRef = useRef<HTMLDivElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
@@ -100,6 +122,9 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
   const [closing, setClosing] = useState(false);
   const [ready, setReady] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [suppressionMenuOpen, setSuppressionMenuOpen] = useState(false);
+  const [suppressingScope, setSuppressingScope] =
+    useState<SelectionTooltipSuppressionScope | null>(null);
 
   useEffect(() => {
     const updateTooltipFromSavedRange = () => {
@@ -430,6 +455,53 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
     hideTimerRef.current = window.setTimeout(hideTooltip, 400);
   }
 
+  async function suppressTooltip(scope: SelectionTooltipSuppressionScope) {
+    if (suppressingScope) {
+      return;
+    }
+
+    setSuppressingScope(scope);
+    try {
+      const rule = await onSuppress(scope);
+      setSuppressionMenuOpen(false);
+      toast(
+        t(
+          scope === "page"
+            ? "tooltip.suppression.pageSaved"
+            : "tooltip.suppression.siteSaved",
+        ),
+        {
+          duration: 8000,
+          action: {
+            label: t("tooltip.suppression.undo"),
+            onClick: () => {
+              void onRestoreSuppression(rule)
+                .then(() => {
+                  toast(t("tooltip.suppression.restored"));
+                })
+                .catch((error: unknown) => {
+                  console.error(
+                    "[SnippetVault] Failed to undo a selection tooltip exception",
+                    error,
+                  );
+                  toast.error(t("tooltip.suppression.undoFailed"));
+                });
+            },
+          },
+        },
+      );
+    } catch (error: unknown) {
+      console.error(
+        "[SnippetVault] Failed to save a selection tooltip exception",
+        error,
+      );
+      setSuppressionMenuOpen(false);
+      toast.error(t("tooltip.suppression.saveFailed"));
+    } finally {
+      setSuppressingScope(null);
+    }
+  }
+
   function resetForm() {
     setSelectedLabelIds([]);
     setLabelInput("");
@@ -441,6 +513,8 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
     setClosing(false);
     setSaved(false);
     setReady(false);
+    setSuppressionMenuOpen(false);
+    setSuppressingScope(null);
     clearClosingTimer();
   }
 
@@ -478,7 +552,8 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
     return null;
   }
 
-  const busy = creatingLabel || labelsLoading || saving;
+  const busy =
+    creatingLabel || labelsLoading || saving || suppressingScope !== null;
   const maximumVisibleLabels =
     window.innerWidth < COMPACT_VIEWPORT_WIDTH
       ? COMPACT_MAX_VISIBLE_LABELS
@@ -510,10 +585,10 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
       ref={tooltipRef}
       data-snippet-vault-ui="true"
       className={cn(
-        "pointer-events-auto fixed z-50 isolate w-2xl rounded-xl border border-foreground/20 bg-popover p-3 font-sans text-popover-foreground shadow-md outline-none",
+        "pointer-events-auto fixed z-50 isolate w-2xl rounded-2xl bg-popover p-3 font-sans text-popover-foreground shadow-xl outline-none",
         closing
           ? "motion-safe:animate-out motion-safe:fade-out-0 motion-safe:zoom-out-95"
-          : "motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95",
+          : ready && "motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95",
         !ready && !closing && "invisible",
       )}
       style={style}
@@ -537,19 +612,19 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         aria-label={t("tooltip.labelGroup")}
         onKeyDown={handleLabelGroupKeyDown}
       >
-        <span className="inline-flex h-7 shrink-0 basis-full items-center px-1 text-sm text-muted-foreground">
+        <span className="inline-flex h-7 shrink-0 basis-full items-center px-1 mb-0.5 text-sm text-muted-foreground">
           {t("tooltip.labelPrompt")}
         </span>
 
         {labelsExpanded && hiddenLabelCount > 0 ? (
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             disabled={busy}
             aria-expanded="true"
             onClick={() => setLabelsExpanded(false)}
-            className="text-muted-foreground"
+            className="shrink-0"
           >
             <ChevronUp aria-hidden="true" />
             {t("tooltip.collapseLabels")}
@@ -564,7 +639,7 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         ) : null}
 
         {!labelsLoading && labels.length === 0 ? (
-          <span className="text-xs text-muted-foreground italic">
+          <span className="text-xs text-muted-foreground shrink-0">
             {t("tooltip.noLabelsHint")}
           </span>
         ) : null}
@@ -599,12 +674,12 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         {!labelsExpanded && hiddenLabelCount > 0 ? (
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             disabled={busy}
             aria-expanded="false"
             onClick={() => setLabelsExpanded(true)}
-            className="text-muted-foreground"
+            className="shrink-0"
           >
             <ChevronDown aria-hidden="true" />
             {t("tooltip.expandLabels", [hiddenLabelCount])}
@@ -612,9 +687,9 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         ) : null}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-1.5 border-t pt-3">
         {labelEditorOpen ? (
-          <div className="relative min-w-40 flex-1 basis-full sm:basis-40">
+          <div className="relative mr-auto min-w-40 flex-1 basis-full sm:basis-40">
             <Input
               ref={labelInputRef}
               className="h-7 text-sm md:text-sm"
@@ -648,6 +723,62 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
           </Button>
         )}
 
+        <Popover
+          open={suppressionMenuOpen}
+          onOpenChange={setSuppressionMenuOpen}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant={suppressionMenuOpen ? "secondary" : "ghost"}
+              size="icon-sm"
+              disabled={busy}
+              aria-expanded={suppressionMenuOpen}
+              aria-label={t("tooltip.suppression.menuLabel")}
+              title={t("tooltip.suppression.menuLabel")}
+            >
+              {suppressingScope ? (
+                <LoaderCircle className="animate-spin" aria-hidden="true" />
+              ) : (
+                <EyeOff aria-hidden="true" />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            portalContainer={tooltipRef.current ?? portalContainer}
+            align="end"
+            className="w-56 gap-1 p-1"
+            data-snippet-vault-ui="true"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start font-normal"
+              disabled={busy}
+              onClick={() => void suppressTooltip("page")}
+            >
+              {t("tooltip.suppression.pageAction")}
+            </Button>
+            <div className="mx-1 border-t" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start font-normal"
+              disabled={busy || !canSuppressSite}
+              title={
+                canSuppressSite
+                  ? undefined
+                  : t("tooltip.suppression.siteUnavailable")
+              }
+              onClick={() => void suppressTooltip("site")}
+            >
+              {t("tooltip.suppression.siteAction")}
+            </Button>
+          </PopoverContent>
+        </Popover>
+
         <Select
           value={contextId ?? ""}
           onValueChange={(value) =>
@@ -657,10 +788,7 @@ export function SelectionTooltip({ portalContainer }: SelectionTooltipProps) {
         >
           <SelectTrigger
             size="sm"
-            className={cn(
-              "max-w-44 shrink-0",
-              contextId && "ring-1 ring-primary/30",
-            )}
+            className="max-w-44 shrink-0"
             aria-label={t("tooltip.environmentSelectLabel")}
           >
             <SelectValue placeholder={t("tooltip.environmentPlaceholder")} />

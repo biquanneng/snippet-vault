@@ -24,7 +24,7 @@
       "back": "Back to settings",
       "general": {
         "title": "General",
-        "description": "Language and theme"
+        "description": "Language, theme, and page exceptions"
       },
       "workspace": {
         "title": "Contexts & workspace",
@@ -46,6 +46,27 @@
     "language": {
       "title": "Language",
       "description": "Choose the language used by SnippetVault surfaces."
+    },
+    "selectionTooltipSuppression": {
+      "title": "Selection tooltip exceptions",
+      "description": "Hide the selection save tooltip on specific pages or sites without disabling in-page search.",
+      "loading": "Loading exceptions",
+      "loadFailed": "Could not load selection tooltip exceptions. The saved list has not been treated as empty.",
+      "retry": "Retry",
+      "empty": "No exceptions added yet.",
+      "emptyHint": "Click the hide button in the selection tooltip on any page to add the current page or site to the exception list.",
+      "pageScope": "Page",
+      "siteScope": "Site",
+      "ruleCount": "{count} exception(s)",
+      "remove": "Remove exception",
+      "removed": "Exception removed",
+      "clearAll": "Clear all exceptions",
+      "clearTitle": "Clear every selection tooltip exception?",
+      "clearDescription": "The selection tooltip will be restored on all supported pages and sites that are already open.",
+      "cancel": "Cancel",
+      "confirmClear": "Clear all",
+      "cleared": "All exceptions cleared",
+      "writeFailed": "Could not update selection tooltip exceptions. Your previous list is unchanged."
     },
     "analytics": {
       "title": "Anonymous usage data",
@@ -215,6 +236,18 @@
     "environmentSelectLabel": "Choose a context; it is saved and searchable",
     "environmentPlaceholder": "Context",
     "environmentNone": "No context",
+    "suppression": {
+      "menuLabel": "Selection tooltip options",
+      "pageAction": "Don't show on this page",
+      "siteAction": "Don't show on this site",
+      "siteUnavailable": "The current page does not support site-wide suppression",
+      "pageSaved": "Selection tooltip hidden on this page",
+      "siteSaved": "Selection tooltip hidden on this site",
+      "undo": "Undo",
+      "restored": "Selection tooltip restored",
+      "saveFailed": "Could not save this selection tooltip exception",
+      "undoFailed": "Could not restore the selection tooltip"
+    },
     "save": "Save"
   },
   "search": {

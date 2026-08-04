@@ -17,6 +17,11 @@ import { createSnippetVaultService } from '../lib/core';
 import { getUiLocale, initializeLanguage } from '../lib/i18n';
 import { translate } from '../lib/i18n-catalog';
 import { getWorkspaceExpiryDays } from '../lib/workspace-expiry';
+import {
+  applySelectionTooltipSuppressionMutation,
+  createSelectionTooltipSuppressionMutationResponse,
+  isSelectionTooltipSuppressionMutationRequest,
+} from '../lib/selection-tooltip-suppression-storage';
 
 let controller: VaultMessageController | null = null;
 
@@ -40,6 +45,28 @@ export default defineBackground(() => {
     });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (isSelectionTooltipSuppressionMutationRequest(message)) {
+      if (sender.id !== browser.runtime.id) {
+        sendResponse(createSelectionTooltipSuppressionMutationResponse());
+        return false;
+      }
+
+      applySelectionTooltipSuppressionMutation(message)
+        .then((preferences) => {
+          sendResponse(
+            createSelectionTooltipSuppressionMutationResponse(preferences),
+          );
+        })
+        .catch((error: unknown) => {
+          console.error(
+            '[SnippetVault] Selection tooltip preference update failed',
+            error,
+          );
+          sendResponse(createSelectionTooltipSuppressionMutationResponse());
+        });
+      return true;
+    }
+
     if (!isExtensionRequest(message)) {
       if (hasExtensionMessageType(message)) {
         sendResponse(
