@@ -49,7 +49,6 @@ import {
   calculateTooltipPosition,
   getRangeSelectionBox,
   isEditableTarget,
-  isKeyboardSelectionEvent,
   isSelectionBoxVisible,
   isSnippetVaultUiEvent,
   readSelectionSnapshot,
@@ -60,6 +59,12 @@ import {
   clearCapturedSelectionHighlight,
   showCapturedSelectionHighlight,
 } from "./selection-highlight";
+import {
+  getSelectionTooltipShortcutPlatform,
+  isSelectionTooltipCopyShortcut,
+  SelectionTooltipShortcutDetector,
+  type SelectionTooltipSelectionIdentity,
+} from "./selection-tooltip-shortcut";
 import {
   getLocalizedLabelName,
 } from "../../lib/localized-values";
@@ -127,6 +132,13 @@ export function SelectionTooltip({
     useState<SelectionTooltipSuppressionScope | null>(null);
 
   useEffect(() => {
+    const shortcutPlatform = getSelectionTooltipShortcutPlatform(
+      navigator.platform || navigator.userAgent,
+    );
+    const shortcutDetector = new SelectionTooltipShortcutDetector(
+      shortcutPlatform,
+    );
+
     const updateTooltipFromSavedRange = () => {
       viewportUpdateFrameRef.current = null;
       const savedRange = savedRangeRef.current;
@@ -165,7 +177,8 @@ export function SelectionTooltip({
       );
     };
 
-    const updateSelection = (event: Event) => {
+    const handlePagePointerUp = (event: PointerEvent) => {
+      shortcutDetector.reset();
       if (uiPointerActiveRef.current) {
         uiPointerActiveRef.current = false;
         return;
@@ -173,61 +186,102 @@ export function SelectionTooltip({
       if (isSnippetVaultUiEvent(event)) {
         return;
       }
-      if (isEditableTarget(event.target)) {
+      if (savedRangeRef.current) {
         hideTooltip();
-        return;
       }
+    };
 
-      // Capture the range before the RAF. Tooltip controls may receive focus
-      // before the deferred snapshot is read and collapse the native selection.
-      const currentSelection = window.getSelection();
-      if (currentSelection && !currentSelection.isCollapsed) {
-        const savedRange = currentSelection.getRangeAt(0).cloneRange();
-        savedRangeRef.current = savedRange;
-        showCapturedSelectionHighlight(savedRange);
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (
+        savedRangeRef.current &&
+        !isSnippetVaultUiEvent(event) &&
+        event.key !== "Control" &&
+        event.key !== "Meta" &&
+        event.key.toLocaleLowerCase() !== "c"
+      ) {
+        hideTooltip();
       }
-
-      window.requestAnimationFrame(() => {
-        const snapshot = readSelectionSnapshot();
-        if (!snapshot) {
-          hideTooltip();
-          return;
-        }
-
-        void loadOptions();
-        setSelection(snapshot);
-        resetForm();
-        setPosition(
-          calculateTooltipPosition(
-            snapshot.box,
-            ESTIMATED_TOOLTIP_SIZE,
-            viewportSize(),
-          ),
-        );
-      });
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        hideTooltip();
+        shortcutDetector.reset();
+        if (savedRangeRef.current) {
+          hideTooltip();
+        }
+        return;
       }
-    };
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (isKeyboardSelectionEvent(event)) {
-        updateSelection(event);
+
+      if (
+        savedRangeRef.current ||
+        isSnippetVaultUiEvent(event) ||
+        isEditableTarget(event.target)
+      ) {
+        shortcutDetector.reset();
+        return;
       }
+
+      if (!isSelectionTooltipCopyShortcut(event, shortcutPlatform)) {
+        shortcutDetector.reset();
+        return;
+      }
+
+      const currentSelection = window.getSelection();
+      const snapshot = readSelectionSnapshot(currentSelection);
+      if (
+        !currentSelection ||
+        !snapshot ||
+        !isSelectionBoxVisible(snapshot.box, viewportSize())
+      ) {
+        shortcutDetector.reset();
+        return;
+      }
+
+      const shortcutState = shortcutDetector.register(
+        event,
+        createSelectionIdentity(currentSelection, snapshot),
+      );
+
+      if (shortcutState !== "matched") {
+        // The first copy remains entirely native. It arms the shortcut without
+        // reading from or changing the clipboard.
+        return;
+      }
+
+      // The selected text was already copied by the first press. Suppress only
+      // the second copy before opening SnippetVault.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const savedRange = currentSelection.getRangeAt(0).cloneRange();
+      savedRangeRef.current = savedRange;
+      showCapturedSelectionHighlight(savedRange);
+      void loadOptions();
+      setSelection(snapshot);
+      resetForm();
+      setPosition(
+        calculateTooltipPosition(
+          snapshot.box,
+          ESTIMATED_TOOLTIP_SIZE,
+          viewportSize(),
+        ),
+      );
     };
 
-    document.addEventListener("pointerup", updateSelection, true);
+    const resetShortcut = () => shortcutDetector.reset();
+
+    document.addEventListener("pointerup", handlePagePointerUp, true);
     document.addEventListener("keyup", handleKeyUp, true);
     document.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("blur", resetShortcut);
     window.addEventListener("resize", scheduleViewportUpdate);
     window.addEventListener("scroll", scheduleViewportUpdate, true);
 
     return () => {
-      document.removeEventListener("pointerup", updateSelection, true);
+      document.removeEventListener("pointerup", handlePagePointerUp, true);
       document.removeEventListener("keyup", handleKeyUp, true);
       document.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("blur", resetShortcut);
       window.removeEventListener("resize", scheduleViewportUpdate);
       window.removeEventListener("scroll", scheduleViewportUpdate, true);
       savedRangeRef.current = null;
@@ -920,5 +974,19 @@ function viewportSize() {
   return {
     width: window.innerWidth,
     height: window.innerHeight,
+  };
+}
+
+function createSelectionIdentity(
+  selection: Selection,
+  snapshot: SelectionSnapshot,
+): SelectionTooltipSelectionIdentity {
+  const range = selection.getRangeAt(0);
+  return {
+    startContainer: range.startContainer,
+    startOffset: range.startOffset,
+    endContainer: range.endContainer,
+    endOffset: range.endOffset,
+    markdown: snapshot.markdown,
   };
 }

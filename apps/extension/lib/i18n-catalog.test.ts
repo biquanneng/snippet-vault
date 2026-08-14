@@ -41,6 +41,33 @@ describe('i18n catalogs', () => {
       translate('zh_CN', 'search.pagination.total', ['12'], 12),
     ).toBe('12 条记录');
   });
+
+  it('renders the selection tooltip exception count in both locales', () => {
+    expect(
+      translate(
+        'en',
+        'settings.selectionTooltipSuppression.ruleCount',
+        [1],
+        1,
+      ),
+    ).toBe('1 exception');
+    expect(
+      translate(
+        'en',
+        'settings.selectionTooltipSuppression.ruleCount',
+        [2],
+        2,
+      ),
+    ).toBe('2 exceptions');
+    expect(
+      translate(
+        'zh_CN',
+        'settings.selectionTooltipSuppression.ruleCount',
+        [2],
+        2,
+      ),
+    ).toBe('共 2 条例外');
+  });
 });
 
 function flattenKeys(value: Record<string, unknown>): string[] {

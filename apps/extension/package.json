@@ -2,7 +2,7 @@
   "name": "snippet-vault",
   "description": "A local-first private snippet vault and temporary workspace for developers.",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "MPL-2.0",
   "type": "module",
   "packageManager": "pnpm@10.24.0",

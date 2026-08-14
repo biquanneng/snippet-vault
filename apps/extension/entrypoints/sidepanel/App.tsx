@@ -57,6 +57,7 @@ export function App() {
       ) : (
         <SearchPanelContent
           inputRef={inputRef}
+          compactToolbar
           capabilities={{
             enhancedCreate: true,
             workspaceLifecycleActions: true,

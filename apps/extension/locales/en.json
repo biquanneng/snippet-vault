@@ -24,7 +24,7 @@
       "back": "Back to settings",
       "general": {
         "title": "General",
-        "description": "Language, theme, and page exceptions"
+        "description": "Language, theme, shortcuts, and page exceptions"
       },
       "workspace": {
         "title": "Contexts & workspace",
@@ -47,6 +47,15 @@
       "title": "Language",
       "description": "Choose the language used by SnippetVault surfaces."
     },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "description": "These shortcuts are fixed for now and cannot be changed.",
+      "openSearch": "Open in-page search",
+      "openSelectionTooltip": "Show the selection save tooltip",
+      "doubleShiftLabel": "Press Shift twice",
+      "macosCopyLabel": "Hold Command and press C twice",
+      "windowsCopyLabel": "Hold Control and press C twice"
+    },
     "selectionTooltipSuppression": {
       "title": "Selection tooltip exceptions",
       "description": "Hide the selection save tooltip on specific pages or sites without disabling in-page search.",
@@ -57,7 +66,7 @@
       "emptyHint": "Click the hide button in the selection tooltip on any page to add the current page or site to the exception list.",
       "pageScope": "Page",
       "siteScope": "Site",
-      "ruleCount": "{count} exception(s)",
+      "ruleCount": "$1 exception | $1 exceptions",
       "remove": "Remove exception",
       "removed": "Exception removed",
       "clearAll": "Clear all exceptions",

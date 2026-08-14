@@ -24,7 +24,7 @@
       "back": "返回设置",
       "general": {
         "title": "通用",
-        "description": "语言、主题与页面例外"
+        "description": "语言、主题、快捷键与页面例外"
       },
       "workspace": {
         "title": "环境与工作区",
@@ -47,6 +47,15 @@
       "title": "语言",
       "description": "选择 SnippetVault 各个界面使用的语言。"
     },
+    "shortcuts": {
+      "title": "快捷键",
+      "description": "快捷键暂不支持修改。",
+      "openSearch": "打开页内检索",
+      "openSelectionTooltip": "显示选区保存提示",
+      "doubleShiftLabel": "连续按两次 Shift",
+      "macosCopyLabel": "按住 Command，连续按两次 C",
+      "windowsCopyLabel": "按住 Ctrl，连续按两次 C"
+    },
     "selectionTooltipSuppression": {
       "title": "选区提示例外",
       "description": "在指定页面或网站隐藏保存提示，同时保留页内检索能力。",
@@ -57,7 +66,7 @@
       "emptyHint": "在任意页面的选区提示中点击隐藏按钮即可将当前页面或网站加入例外列表。",
       "pageScope": "页面",
       "siteScope": "网站",
-      "ruleCount": "共 {count} 条例外",
+      "ruleCount": "共 $1 条例外",
       "remove": "移除例外",
       "removed": "例外已移除",
       "clearAll": "清空全部例外",

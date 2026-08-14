@@ -80,6 +80,7 @@ interface SearchPanelCapabilities {
 interface SearchPanelContentProps {
   inputRef: Ref<HTMLInputElement>;
   capabilities?: SearchPanelCapabilities;
+  compactToolbar?: boolean;
   portalContainer?: HTMLElement;
   toolbarEnd?: ReactNode;
   requestSender?: SearchPanelRequestSender;
@@ -97,6 +98,7 @@ export type SearchPanelRequestSender = (
 export function SearchPanelContent({
   inputRef,
   capabilities,
+  compactToolbar = false,
   portalContainer,
   toolbarEnd,
   requestSender = sendSearchPanelRequest,
@@ -597,22 +599,38 @@ export function SearchPanelContent({
         onValueChange={changeKind}
         className="min-h-0 flex-1 gap-0 overflow-hidden"
       >
-        <div className="flex shrink-0 flex-col gap-2 bg-muted/30 px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList className="w-full sm:w-auto">
-            <TabsTrigger value="vault" className="px-2" disabled={formOpen}>
+        <div
+          className={
+            compactToolbar
+              ? 'flex shrink-0 items-center justify-between gap-2 bg-muted/30 px-3 py-2'
+              : 'flex shrink-0 flex-col gap-2 bg-muted/30 px-4 py-2 sm:flex-row sm:items-center sm:justify-between'
+          }
+        >
+          <TabsList className={compactToolbar ? undefined : 'w-full sm:w-auto'}>
+            <TabsTrigger
+              value="vault"
+              className={compactToolbar ? 'px-1.5' : 'px-2'}
+              disabled={formOpen}
+            >
               <ShieldCheck aria-hidden="true" />
               {t('search.tabs.vault')}
             </TabsTrigger>
             <TabsTrigger
               value="workspace"
-              className="px-2"
+              className={compactToolbar ? 'px-1.5' : 'px-2'}
               disabled={formOpen}
             >
               <BriefcaseBusiness aria-hidden="true" />
               {t('search.tabs.workspace')}
             </TabsTrigger>
           </TabsList>
-          <div className="flex min-w-0 items-center gap-2">
+          <div
+            className={
+              compactToolbar
+                ? 'flex shrink-0 items-center gap-2'
+                : 'flex min-w-0 items-center gap-2'
+            }
+          >
             <Button
               type="button"
               variant="secondary"
@@ -620,7 +638,11 @@ export function SearchPanelContent({
               disabled={formOpen}
               aria-pressed={formState?.mode === 'create'}
               onClick={openCreateForm}
-              className="min-w-0 flex-1 sm:flex-none"
+              className={
+                compactToolbar
+                  ? 'shrink-0'
+                  : 'min-w-0 flex-1 sm:flex-none'
+              }
             >
               <Plus aria-hidden="true" />
               <span className="truncate">{t('search.create.open')}</span>

@@ -174,9 +174,11 @@ export function SelectionTooltipSuppressionSettings() {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">
-              {t('settings.selectionTooltipSuppression.ruleCount', [
+              {t(
+                'settings.selectionTooltipSuppression.ruleCount',
+                [preferences.rules.length],
                 preferences.rules.length,
-              ])}
+              )}
             </span>
             {preferences.rules.length > 5 ? (
               <AlertDialog>
