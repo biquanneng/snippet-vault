@@ -123,10 +123,11 @@ yet running. No access is used without that click.
 ```text
 After the user clicks the toolbar icon on a tab that has no running
 SnippetVault content script (because the tab predates installation or an
-update), chrome.scripting.executeScript injects the content script file that
-ships inside the extension package and asks it to open the search panel. It
-never injects remote code or arbitrary strings, and it is not used on any tab
-the user did not act on.
+update), chrome.scripting.executeScript runs two packaged injections: a
+one-line function that sets a flag asking the panel to open on mount, then
+the content script file that ships inside the extension package. It never
+injects remote code or arbitrary strings, and it is not used on any tab the
+user did not act on.
 ```
 
 ### `sidePanel` justification

@@ -2,23 +2,33 @@
 
 export const mediaTheme = {
   colors: {
-    background: "oklch(1 0 0)",
-    canvas: "oklch(0.966 0.005 106.5)",
-    surface: "oklch(1 0 0)",
-    ink: "oklch(0.153 0.006 107.1)",
-    charcoal: "#2D2F34",
-    charcoalSoft: "#3B3E44",
-    muted: "oklch(0.565 0.031 107.3)",
-    mutedOnDark: "#C8CAC5",
-    accent: "#B3D62E",
-    accentSoft: "#EEF5CE",
-    onAccent: "#202216",
+    background: "#FFFFFF",
+    canvas: "#F8FAFC",
+    surface: "#FFFFFF",
+    ink: "#0F172A",
+    charcoal: "#0F172A",
+    charcoalSoft: "#1E293B",
+    darkCanvas: "#0B0F17",
+    darkSurface: "#111827",
+    darkBorder: "rgba(255, 255, 255, 0.1)",
+    muted: "#64748B",
+    mutedOnDark: "#94A3B8",
+    accent: "#84CC16",
+    accentSoft: "#F7FEE7",
+    accentBorder: "#D9F99D",
+    onAccent: "#1A2E05",
     white: "#FFFFFF",
+    border: "#E2E8F0",
+    borderSubtle: "rgba(15, 23, 42, 0.06)",
   },
   fontFamily:
-    'Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+    'Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
   radius: {
     frame: 14,
+    card: 16,
   },
-  shadow: "0 6px 8px rgba(20, 22, 24, 0.18)",
+  shadow:
+    "0 24px 48px -12px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.06), 0 8px 16px -6px rgba(15, 23, 42, 0.04)",
+  darkShadow:
+    "0 30px 60px -12px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(255, 255, 255, 0.1), 0 12px 24px -6px rgba(0, 0, 0, 0.35)",
 } as const;

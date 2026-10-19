@@ -38,29 +38,52 @@ type LayoutProps = {
 const Canvas = ({ children }: { readonly children: ReactNode }) => (
   <AbsoluteFill
     style={{
-      backgroundColor: mediaTheme.colors.canvas,
+      background:
+        "radial-gradient(120% 120% at 50% 0%, #FFFFFF 0%, #F8FAFC 50%, #F1F5F9 100%)",
+      boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.08)",
       color: mediaTheme.colors.ink,
       fontFamily: mediaTheme.fontFamily,
       overflow: "hidden",
     }}
   >
-    <div
-      style={{
-        backgroundColor: mediaTheme.colors.accent,
-        height: 7,
-        left: 0,
-        position: "absolute",
-        right: 0,
-        top: 0,
-      }}
-    />
     {children}
   </AbsoluteFill>
 );
 
+const FeatureBadge = ({ label }: { readonly label: string }) => (
+  <div
+    style={{
+      alignItems: "center",
+      backgroundColor: "#FFFFFF",
+      border: "1px solid #E2E8F0",
+      borderRadius: 9999,
+      boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+      color: "#475569",
+      display: "inline-flex",
+      fontSize: 12,
+      fontWeight: 650,
+      gap: 7,
+      letterSpacing: "0.05em",
+      padding: "5px 12px",
+      textTransform: "uppercase",
+      width: "fit-content",
+    }}
+  >
+    <div
+      style={{
+        backgroundColor: mediaTheme.colors.accent,
+        borderRadius: "50%",
+        height: 6,
+        width: 6,
+      }}
+    />
+    <span>{label}</span>
+  </div>
+);
+
 const Headline = ({
   children,
-  fontSize = 56,
+  fontSize = 52,
   width,
 }: {
   readonly children: ReactNode;
@@ -71,9 +94,9 @@ const Headline = ({
     style={{
       color: mediaTheme.colors.ink,
       fontSize,
-      fontWeight: 780,
+      fontWeight: 740,
       letterSpacing: "-0.03em",
-      lineHeight: 1.02,
+      lineHeight: 1.05,
       margin: 0,
       maxWidth: width,
       textWrap: "balance",
@@ -93,9 +116,9 @@ const Description = ({
   <p
     style={{
       color: mediaTheme.colors.muted,
-      fontSize: 21,
-      fontWeight: 500,
-      lineHeight: 1.42,
+      fontSize: 19.5,
+      fontWeight: 480,
+      lineHeight: 1.48,
       margin: 0,
       maxWidth: width,
       textWrap: "pretty",
@@ -105,48 +128,37 @@ const Description = ({
   </p>
 );
 
-const AccentRule = () => (
-  <div
-    style={{
-      backgroundColor: mediaTheme.colors.accent,
-      height: 6,
-      width: 72,
-    }}
-  />
-);
-
 const SearchLayout = ({ locale, screenshotPath }: LayoutProps) => {
   const copy = storeCopy[locale].search;
 
   return (
     <Canvas>
+      <div style={{ left: 64, position: "absolute", top: 48 }}>
+        <BrandLockup size="large" />
+      </div>
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "100%",
-          justifyContent: "space-between",
-          left: 56,
-          padding: "42px 0 58px",
+          gap: 18,
+          left: 64,
           position: "absolute",
-          width: 430,
+          top: 250,
+          width: 450,
         }}
       >
-        <BrandLockup size="large" />
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <Headline fontSize={64} width={420}>
-            {copy.headline}
-          </Headline>
-          <Description width={390}>{copy.description}</Description>
-          <AccentRule />
-        </div>
+        <FeatureBadge label="Local search" />
+        <Headline fontSize={54} width={440}>
+          {copy.headline}
+        </Headline>
+        <Description width={420}>{copy.description}</Description>
       </div>
-      <div style={{ position: "absolute", right: 46, top: 38 }}>
+      <div style={{ position: "absolute", right: 54, top: 50 }}>
         <ProductScreenshot
           expectedPath={getExpectedScreenshotPath(locale, "search")}
-          height={718}
+          height={700}
           screenshotPath={screenshotPath}
-          width={622}
+          width={660}
         />
       </div>
     </Canvas>
@@ -154,12 +166,14 @@ const SearchLayout = ({ locale, screenshotPath }: LayoutProps) => {
 };
 
 const TopLayout = ({
+  badgeLabel,
   locale,
   screenshotHeight,
   screenshotPath,
   screenshotTop,
   slideId,
 }: LayoutProps & {
+  readonly badgeLabel: string;
   readonly screenshotHeight: number;
   readonly screenshotTop: number;
   readonly slideId: "capture" | "in-page-search";
@@ -173,45 +187,37 @@ const TopLayout = ({
           alignItems: "center",
           display: "flex",
           justifyContent: "space-between",
-          left: 56,
+          left: 64,
           position: "absolute",
-          right: 56,
-          top: 38,
+          right: 64,
+          top: 32,
         }}
       >
         <BrandLockup />
-        <span
-          style={{
-            color: mediaTheme.colors.muted,
-            fontSize: 18,
-            fontWeight: 600,
-          }}
-        >
-          Chrome extension
-        </span>
+        <FeatureBadge label={badgeLabel} />
       </div>
       <div
         style={{
-          alignItems: "flex-end",
           display: "flex",
-          justifyContent: "space-between",
-          left: 56,
+          flexDirection: "column",
+          gap: 6,
+          left: 64,
           position: "absolute",
-          right: 56,
-          top: 92,
+          right: 64,
+          top: 78,
         }}
       >
-        <Headline fontSize={52} width={730}>
+        <Headline fontSize={38} width={800}>
           {copy.headline}
         </Headline>
-        <Description width={390}>{copy.description}</Description>
+        <Description width={750}>{copy.description}</Description>
       </div>
-      <div style={{ left: 56, position: "absolute", top: screenshotTop }}>
+      <div style={{ left: 64, position: "absolute", top: screenshotTop }}>
         <ProductScreenshot
           expectedPath={getExpectedScreenshotPath(locale, slideId)}
           height={screenshotHeight}
           screenshotPath={screenshotPath}
-          width={1168}
+          width={1152}
         />
       </div>
     </Canvas>
@@ -226,37 +232,36 @@ const TemporaryWorkspaceLayout = ({
 
   return (
     <Canvas>
-      <div style={{ left: 46, position: "absolute", top: 68 }}>
+      <div style={{ left: 54, position: "absolute", top: 50 }}>
         <ProductScreenshot
           expectedPath={getExpectedScreenshotPath(
             locale,
             "temporary-workspace",
           )}
-          height={650}
+          height={700}
           screenshotPath={screenshotPath}
-          width={718}
+          width={660}
         />
+      </div>
+      <div style={{ position: "absolute", right: 64, top: 48 }}>
+        <BrandLockup size="large" />
       </div>
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "100%",
-          justifyContent: "space-between",
-          padding: "48px 0 62px",
+          gap: 18,
           position: "absolute",
-          right: 48,
-          width: 408,
+          right: 64,
+          top: 250,
+          width: 450,
         }}
       >
-        <BrandLockup />
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <Headline fontSize={58} width={398}>
-            {copy.headline}
-          </Headline>
-          <Description width={375}>{copy.description}</Description>
-          <AccentRule />
-        </div>
+        <FeatureBadge label="Expiring workspace" />
+        <Headline fontSize={52} width={440}>
+          {copy.headline}
+        </Headline>
+        <Description width={420}>{copy.description}</Description>
       </div>
     </Canvas>
   );
@@ -267,33 +272,32 @@ const LocalBackupLayout = ({ locale, screenshotPath }: LayoutProps) => {
 
   return (
     <Canvas>
+      <div style={{ left: 64, position: "absolute", top: 48 }}>
+        <BrandLockup size="large" />
+      </div>
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "100%",
-          justifyContent: "space-between",
-          left: 56,
-          padding: "46px 0 62px",
+          gap: 18,
+          left: 64,
           position: "absolute",
-          width: 390,
+          top: 250,
+          width: 450,
         }}
       >
-        <BrandLockup />
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <Headline fontSize={58} width={380}>
-            {copy.headline}
-          </Headline>
-          <Description width={350}>{copy.description}</Description>
-          <AccentRule />
-        </div>
+        <FeatureBadge label="Encrypted backup" />
+        <Headline fontSize={50} width={440}>
+          {copy.headline}
+        </Headline>
+        <Description width={410}>{copy.description}</Description>
       </div>
-      <div style={{ position: "absolute", right: 44, top: 118 }}>
+      <div style={{ position: "absolute", right: 54, top: 65 }}>
         <ProductScreenshot
           expectedPath={getExpectedScreenshotPath(locale, "local-backup")}
-          height={562}
+          height={670}
           screenshotPath={screenshotPath}
-          width={762}
+          width={660}
         />
       </div>
     </Canvas>
@@ -311,10 +315,11 @@ export const StoreScreenshot = ({
   if (slideId === "capture") {
     return (
       <TopLayout
+        badgeLabel="Quick capture"
         locale={locale}
-        screenshotHeight={570}
+        screenshotHeight={575}
         screenshotPath={screenshotPath}
-        screenshotTop={190}
+        screenshotTop={175}
         slideId="capture"
       />
     );
@@ -322,10 +327,11 @@ export const StoreScreenshot = ({
   if (slideId === "in-page-search") {
     return (
       <TopLayout
+        badgeLabel="In-page search"
         locale={locale}
-        screenshotHeight={510}
+        screenshotHeight={575}
         screenshotPath={screenshotPath}
-        screenshotTop={220}
+        screenshotTop={175}
         slideId="in-page-search"
       />
     );

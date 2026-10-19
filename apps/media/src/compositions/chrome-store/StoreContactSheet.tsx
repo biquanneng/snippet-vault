@@ -22,7 +22,8 @@ export const StoreContactSheet = ({
 }: StoreContactSheetProps) => (
   <AbsoluteFill
     style={{
-      backgroundColor: mediaTheme.colors.canvas,
+      background:
+        "radial-gradient(120% 120% at 50% 0%, #FFFFFF 0%, #F8FAFC 50%, #F1F5F9 100%)",
       color: mediaTheme.colors.ink,
       fontFamily: mediaTheme.fontFamily,
       padding: "42px 72px",
@@ -35,10 +36,32 @@ export const StoreContactSheet = ({
         justifyContent: "space-between",
       }}
     >
-      <div style={{ fontSize: 34, fontWeight: 760, letterSpacing: -1 }}>
-        Chrome Web Store screenshots
+      <div style={{ fontSize: 32, fontWeight: 760, letterSpacing: -0.8 }}>
+        Chrome Web Store Screenshots
       </div>
-      <div style={{ color: mediaTheme.colors.muted, fontSize: 20 }}>
+      <div
+        style={{
+          alignItems: "center",
+          backgroundColor: "#FFFFFF",
+          border: "1px solid #E2E8F0",
+          borderRadius: 9999,
+          color: mediaTheme.colors.muted,
+          display: "inline-flex",
+          fontSize: 13,
+          fontWeight: 600,
+          gap: 6,
+          padding: "4px 12px",
+          textTransform: "uppercase",
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: mediaTheme.colors.accent,
+            borderRadius: "50%",
+            height: 6,
+            width: 6,
+          }}
+        />
         {locale}
       </div>
     </div>
@@ -58,8 +81,9 @@ export const StoreContactSheet = ({
         <div
           key={slideId}
           style={{
-            borderRadius: 12,
-            boxShadow: "0 12px 34px rgba(25, 32, 29, 0.12)",
+            borderRadius: 14,
+            boxShadow:
+              "0 16px 32px -8px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.08)",
             height: 325,
             overflow: "hidden",
             position: "relative",

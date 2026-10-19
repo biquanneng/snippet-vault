@@ -4,6 +4,7 @@ import { Img, staticFile } from "remotion";
 import { mediaTheme } from "../brand/theme";
 
 type ProductScreenshotProps = {
+  readonly dark?: boolean;
   readonly expectedPath: string;
   readonly height: number;
   readonly screenshotPath: string | null;
@@ -11,6 +12,7 @@ type ProductScreenshotProps = {
 };
 
 export const ProductScreenshot = ({
+  dark = false,
   expectedPath,
   height,
   screenshotPath,
@@ -30,7 +32,7 @@ export const ProductScreenshot = ({
         src={staticFile(screenshotPath)}
         style={{
           borderRadius: mediaTheme.radius.frame,
-          boxShadow: mediaTheme.shadow,
+          boxShadow: dark ? mediaTheme.darkShadow : mediaTheme.shadow,
           display: "block",
           maxHeight: "100%",
           maxWidth: "100%",
