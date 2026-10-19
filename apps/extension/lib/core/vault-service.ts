@@ -3,7 +3,6 @@
 import {
   type ConditionalMutationReceipt,
   type ConditionalMutationResult,
-  type ContextPreset,
   SEARCH_SCHEMA_VERSION,
   type ItemKind,
   type ItemReference,
@@ -33,7 +32,6 @@ interface SnippetVaultServiceOptions {
 }
 
 interface RecordFilterOptions {
-  contextId?: string;
   labelId?: string;
 }
 
@@ -136,14 +134,6 @@ export class SnippetVaultService {
     });
   }
 
-  saveContextPreset(preset: ContextPreset): Promise<MutationReceipt> {
-    return this.enqueueOperation(async () => {
-      await this.tryEnsureReady();
-      const mutation = await this.repository.putContextPreset(preset);
-      return this.rebuildAfterMutation(mutation);
-    });
-  }
-
   touchLabelUsage(id: string, time: number): Promise<MutationReceipt> {
     return this.enqueueOperation(async () => {
       const indexReady = await this.tryEnsureReady();
@@ -189,7 +179,7 @@ export class SnippetVaultService {
       }
 
       try {
-        const { labelNames, contextPresets } = await this.getSearchMetadata();
+        const { labelNames } = await this.getSearchMetadata();
         return this.commitConditionalIndexMutation(mutation, () => {
           this.searchIndex.remove(
             toSearchDocumentId({ kind: 'workspace', id: workspaceId }),
@@ -198,7 +188,6 @@ export class SnippetVaultService {
             createSearchDocument(
               { kind: 'vault', item: vaultItem },
               labelNames,
-              contextPresets,
             ),
           );
         });
@@ -256,12 +245,6 @@ export class SnippetVaultService {
     return this.repository.listLabels(options);
   }
 
-  listContextPresets(
-    options?: { includeArchived?: boolean },
-  ): Promise<ContextPreset[]> {
-    return this.repository.listContextPresets(options);
-  }
-
   search(
     query: string,
     options: SearchOptions = {},
@@ -287,7 +270,7 @@ export class SnippetVaultService {
     options: SearchOptions,
   ): Promise<SearchResult[]> {
     const limit = Math.min(100, Math.max(1, options.limit ?? 50));
-    if (query.trim() && (options.contextId || options.labelId)) {
+    if (query.trim() && options.labelId) {
       await this.pruneExpiredRecords();
     }
     const now = this.clock();
@@ -400,7 +383,7 @@ export class SnippetVaultService {
   private async rebuildIndex(): Promise<void> {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const meta = await this.repository.getMeta();
-      const [records, { labelNames, contextPresets }] = await Promise.all([
+      const [records, { labelNames }] = await Promise.all([
         this.repository.listActiveRecords(this.clock()),
         this.getSearchMetadata(),
       ]);
@@ -408,7 +391,7 @@ export class SnippetVaultService {
       await this.searchIndex.clear();
       for (const record of records) {
         this.searchIndex.upsert(
-          createSearchDocument(record, labelNames, contextPresets),
+          createSearchDocument(record, labelNames),
         );
       }
       await this.searchIndex.commit();
@@ -440,10 +423,10 @@ export class SnippetVaultService {
     }
 
     try {
-      const { labelNames, contextPresets } = await this.getSearchMetadata();
+      const { labelNames } = await this.getSearchMetadata();
       return this.commitIndexMutation(mutation, () => {
         this.searchIndex.upsert(
-          createSearchDocument(record, labelNames, contextPresets),
+          createSearchDocument(record, labelNames),
         );
       });
     } catch {
@@ -465,10 +448,10 @@ export class SnippetVaultService {
     }
 
     try {
-      const { labelNames, contextPresets } = await this.getSearchMetadata();
+      const { labelNames } = await this.getSearchMetadata();
       return await this.commitConditionalIndexMutation(mutation, () => {
         this.searchIndex.upsert(
-          createSearchDocument(record, labelNames, contextPresets),
+          createSearchDocument(record, labelNames),
         );
       });
     } catch {
@@ -571,21 +554,10 @@ export class SnippetVaultService {
 
   private async getSearchMetadata(): Promise<{
     labelNames: Map<string, string>;
-    contextPresets: Map<string, ContextPreset>;
   }> {
-    const [labels, contextPresets] = await Promise.all([
-      this.repository.listLabels({
-        includeArchived: true,
-      }),
-      this.repository.listContextPresets({
-        includeArchived: true,
-      }),
-    ]);
+    const labels = await this.repository.listLabels({ includeArchived: true });
     return {
       labelNames: new Map(labels.map((label) => [label.id, label.name])),
-      contextPresets: new Map(
-        contextPresets.map((preset) => [preset.id, preset]),
-      ),
     };
   }
 
@@ -654,7 +626,7 @@ export class SnippetVaultService {
     allowedDocumentIds: Set<string>;
     searchCandidateLimit: number;
   } | null> {
-    if (!options.contextId && !options.labelId) {
+    if (!options.labelId) {
       return null;
     }
 
@@ -682,9 +654,6 @@ export class SnippetVaultService {
     filters: RecordFilterOptions,
   ): boolean {
     if (kind && record.kind !== kind) {
-      return false;
-    }
-    if (filters.contextId && record.item.contextId !== filters.contextId) {
       return false;
     }
     if (

@@ -58,7 +58,7 @@ export function SearchPagination({
   }
 
   return (
-    <footer className="flex shrink-0 flex-col gap-2 bg-muted/30 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+    <footer className="flex shrink-0 flex-col gap-2 border-t px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-xs tabular-nums text-muted-foreground">
         {t(
           'search.pagination.total',

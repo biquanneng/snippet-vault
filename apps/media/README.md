@@ -25,8 +25,14 @@ synthetic records only. Never capture real tokens, API keys, source URLs,
 project names, local paths, email addresses, or backup contents.
 
 The V1 acceptance decision, current story, composition requirements, and
-deferred capture improvements are recorded in
+the capture checklist are recorded in
 [`docs/chrome-store-screenshots.md`](docs/chrome-store-screenshots.md).
+
+## Store listing copy
+
+The Chrome Web Store name, descriptions, permission justifications, and
+privacy-practice declarations are in
+[`docs/chrome-web-store-listing.md`](docs/chrome-web-store-listing.md).
 
 ## Commands
 

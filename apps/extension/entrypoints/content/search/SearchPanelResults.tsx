@@ -154,7 +154,7 @@ export function SearchPanelResults({
             onSelectedItemChange={onSelectedItemChange}
           />
         ) : (
-          <ul className="space-y-1 bg-background" role="presentation">
+          <ul className="divide-y bg-background" role="presentation">
             {data.items.map((item) => (
               <SearchResultItem
                 key={item.id}
@@ -248,7 +248,7 @@ function VaultResults({
               )}
             </span>
           </div>
-          <ul className="space-y-1 bg-background" role="presentation">
+          <ul className="divide-y bg-background" role="presentation">
             {group.items.map((item) => (
               <SearchResultItem
                 key={item.id}

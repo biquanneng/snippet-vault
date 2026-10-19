@@ -68,12 +68,12 @@ export const SearchInputBar = forwardRef<
   return (
     <div className="relative flex h-14 items-center">
       <Search
-        className="pointer-events-none absolute left-1 size-5 text-muted-foreground"
+        className="pointer-events-none absolute left-0 size-5 text-muted-foreground"
         aria-hidden="true"
       />
       <Input
         ref={ref}
-        className="h-14 rounded-none border-0 bg-transparent pr-20 pl-9 text-base shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 md:text-base dark:bg-transparent"
+        className="h-14 rounded-none border-0 bg-transparent pr-20 pl-8 text-base shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 disabled:bg-transparent md:text-base dark:bg-transparent dark:disabled:bg-transparent"
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         onKeyDown={(event) => {
@@ -119,6 +119,8 @@ export const SearchInputBar = forwardRef<
         maxLength={MAX_SEARCH_QUERY_LENGTH}
         autoComplete="off"
         spellCheck={false}
+        // Remounts when the snippet form closes; focus returns to search.
+        autoFocus
       />
       {!query ? (
         <span className="pointer-events-none absolute right-2 flex items-center gap-1">

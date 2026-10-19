@@ -12,8 +12,7 @@ let searchIndex: FlexSearchIndex;
 const document: SearchDocument = {
   id: 'vault:item-1',
   kind: 'vault',
-  labelText: 'Token',
-  context: 'meowdex production',
+  labelText: 'Token meowdex production',
   sourceTitle: '阿里云-控制台',
   sourceUrl: 'https://console.example.com/access-token',
   sourceDomain: 'console.example.com',
@@ -58,7 +57,6 @@ describe('FlexSearchIndex', () => {
     searchIndex.upsert({
       ...document,
       labelText: '',
-      context: '',
       sourceTitle: '',
       sourceUrl: '',
       sourceDomain: '',
@@ -78,8 +76,7 @@ describe('FlexSearchIndex', () => {
     searchIndex.upsert({
       ...document,
       labelText: '阿里云',
-      context: '控制台',
-      sourceTitle: '',
+      sourceTitle: '控制台',
       sourceUrl: '',
       sourceDomain: '',
       content: '',
@@ -98,8 +95,7 @@ describe('FlexSearchIndex', () => {
     searchIndex.upsert({
       ...document,
       id: 'vault:item-2',
-      labelText: 'Token',
-      context: 'staging',
+      labelText: 'Token staging',
     });
     await searchIndex.commit();
 
@@ -117,7 +113,6 @@ describe('FlexSearchIndex', () => {
         ...document,
         id: `vault:limited-${index}`,
         labelText: '',
-        context: '',
         sourceTitle: '',
         sourceUrl: '',
         sourceDomain: '',

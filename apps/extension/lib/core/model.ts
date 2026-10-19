@@ -1,26 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
-export const STORAGE_SCHEMA_VERSION = 3;
-export const SEARCH_SCHEMA_VERSION = 5;
-
-export type ContextEnvironment =
-  | 'development'
-  | 'test'
-  | 'staging'
-  | 'production';
-
-export const CONTEXT_COLORS = [
-  'slate',
-  'blue',
-  'cyan',
-  'green',
-  'amber',
-  'orange',
-  'red',
-  'purple',
-] as const;
-
-export type ContextColor = (typeof CONTEXT_COLORS)[number];
+export const STORAGE_SCHEMA_VERSION = 4;
+export const SEARCH_SCHEMA_VERSION = 6;
 
 export interface SourceMetadata {
   title?: string;
@@ -32,7 +13,6 @@ interface BaseItem {
   id: string;
   content: string;
   labelIds: string[];
-  contextId?: string;
   source?: SourceMetadata;
   createdAt: number;
   updatedAt: number;
@@ -52,16 +32,6 @@ export interface Label {
   name: string;
   usageCount: number;
   lastUsedAt?: number;
-  archivedAt?: number;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface ContextPreset {
-  id: string;
-  name: string;
-  color?: ContextColor;
-  environment?: ContextEnvironment;
   archivedAt?: number;
   createdAt: number;
   updatedAt: number;
@@ -95,7 +65,6 @@ export type StoredRecord =
 
 export interface VaultSnapshot {
   labels: Label[];
-  contextPresets: ContextPreset[];
   records: StoredRecord[];
 }
 

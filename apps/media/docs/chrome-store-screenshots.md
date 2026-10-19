@@ -15,15 +15,23 @@ Acceptance here applies to the source captures. The first 1280x800 English
 store-image set is now composed with the real SnippetVault icon and the icon's
 charcoal and lime brand colors.
 
-## V1 story
+## Story
 
-| Slide | Message | Current source |
+Slide copy lives in `src/content/store-copy.ts`.
+
+| Slide | Message | 0.4.0 source to capture |
 | --- | --- | --- |
-| 01 | Find any snippet in seconds | Chrome side-panel search and context controls |
-| 02 | Select, save, and keep moving | Page selection with labels, context, and save actions |
-| 03 | Double-Shift to search anywhere | In-page search panel over the current document |
-| 04 | Keep temporary work temporary | Temporary item list and item actions |
-| 05 | Stay local and back up by choice | Settings storage and readable backup controls |
+| 01 | Find any snippet in seconds | In-page search, Vault tab, submitted query, several results with labels and sources |
+| 02 | Copy twice. Saved. | Page selection just after Command/Ctrl+C twice, showing the quick save confirmation (Undo / Move to vault / More) |
+| 03 | Double-Shift to search anywhere | In-page search panel over the current document, query with highlighted matches |
+| 04 | Keep temporary work temporary | In-page Temporary tab with expiry, `Extend +N days`, and `Move to vault` |
+| 05 | Local by default. Encrypted backups. | Side-panel Settings → Storage with the encrypted export option or passphrase dialog |
+
+> [!IMPORTANT]
+> The V1 source captures below were taken on 0.3. They show contexts, the
+> selection tooltip, side-panel search, and the readable JSON backup, all of
+> which changed in 0.4.0. Recapture all five English sources and add the five
+> `zh-CN` sources before submitting 0.4.0. Keep the same filenames.
 
 ## V1 composition decisions
 
@@ -47,20 +55,18 @@ The English contact sheet was inspected together with each 1280x800 output at
 actual size. Titles scan quickly, while labels, context markers, result content,
 expiry, and backup actions remain legible.
 
-## Deferred capture improvements
+## 0.4.0 capture checklist
 
-These improvements are recorded for a later iteration and are not V1 blockers:
-
-- Slide 01 should use the Vault tab, a submitted query, multiple results, an
-  active context or label filter, and visible hover actions. The current source
-  overlaps with the Temporary story.
-- Slide 02 can collapse the full label catalog to reduce visual noise while
-  preserving the fact that labels and context are optional.
-- Slide 03 can use an explicit query with several highlighted results so the
-  search interaction is more obvious.
-- Slide 04 should eventually use the Chrome side-panel Temporary view and show
-  `Extend +N days` plus `Move to vault`. Those lifecycle actions are not
-  available in the in-page panel used by the current source.
+- Build 0.4.0 and use an isolated profile:
+  `pnpm build && pnpm test:browser -- --load-extension` in `apps/extension`.
+- Seed only synthetic records. Use fake but format-valid credentials (for
+  example the AWS documentation key `AKIAIOSFODNN7EXAMPLE`) so detected labels
+  appear without exposing anything real.
+- One locale and one theme per set; switch the UI language under
+  Settings → General before capturing the `zh-CN` set.
+- Slides 01 and 03 should not overlap: 01 shows the Vault tab and grouped
+  results, 03 shows the panel opening over a document.
+- Slide 01 should not reuse the Temporary tab, which belongs to slide 04.
 
 When replacing a capture, keep the same filename so the media rendering command
 continues to work without code changes.

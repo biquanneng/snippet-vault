@@ -253,10 +253,7 @@ export function TaxonomySettings() {
           {t("settings.taxonomy.archiveNotice")}
         </p>
 
-        <form
-          className="rounded-lg bg-muted/30 p-3"
-          onSubmit={(event) => void createLabel(event)}
-        >
+        <form onSubmit={(event) => void createLabel(event)}>
           <FieldGroup className="gap-3">
             <Field>
               <FieldLabel htmlFor={inputId}>

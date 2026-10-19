@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   CalendarPlus,
   Check,
@@ -9,7 +9,6 @@ import {
   Globe2,
   LoaderCircle,
   Pencil,
-  Pin,
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
@@ -26,7 +25,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../../../components/ui/alert-dialog';
-import { ContextMarker } from '../../../components/context-marker';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import {
@@ -102,6 +100,10 @@ export function SearchResultItem({
 }: SearchResultItemProps) {
   const { locale, t } = useI18n();
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const contentId = useId();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const dateTimeFormatter = useMemo(
     () => new Intl.DateTimeFormat(toIntlLocale(locale), {
@@ -112,8 +114,6 @@ export function SearchResultItem({
     }),
     [locale],
   );
-  const contextText = item.context?.name;
-  const contextColor = item.context?.color;
   const sourceText =
     item.source?.title ?? item.source?.domain ?? item.source?.url;
   const matchedSourceUrl =
@@ -121,15 +121,25 @@ export function SearchResultItem({
     findSearchHighlightRanges(item.source.url, query).length > 0
       ? item.source.url
       : undefined;
-  const hasSourceRow =
-    Boolean(sourceText) || (item.kind === 'vault' && item.pinned);
-  const hasMetadata = item.labels.length > 0 || Boolean(contextText);
   const workspaceActionPending =
     workspaceActionState?.itemId === item.id
       ? workspaceActionState.action
       : undefined;
   const workspaceActionsVisible =
     item.kind === 'workspace' && workspaceLifecycleActionsEnabled;
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content || expanded) {
+      return;
+    }
+    const measure = () =>
+      setOverflowing(content.scrollHeight > content.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [expanded, item.content]);
 
   async function handleCopy() {
     const didCopy = await copySearchPanelItemContent(item, t);
@@ -149,230 +159,41 @@ export function SearchResultItem({
       id={domId}
       ref={listItemRef}
       className={cn(
-        'group relative rounded-md bg-background px-3 py-3 text-foreground transition-colors hover:bg-muted/40',
-        selected && 'bg-muted/50',
+        'group relative bg-background py-3 text-foreground',
+        // The selection bar sits in the list's side gutter so the text keeps
+        // its alignment.
+        selected &&
+          'before:absolute before:inset-y-3 before:-left-2 before:w-0.5 before:rounded-full before:bg-primary',
       )}
       data-selected={selected ? 'true' : undefined}
       role="option"
       aria-selected={selected}
       onFocusCapture={() => onSelect?.(item.id)}
     >
-      <TooltipProvider>
-        <div className="absolute right-2 bottom-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={t(
-                  copied ? 'search.results.copied' : 'search.results.copy',
-                )}
-                onClick={() => void handleCopy()}
-              >
-                {copied ? (
-                  <Check className="size-4 text-primary" aria-hidden="true" />
-                ) : (
-                  <Copy className="size-4" aria-hidden="true" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent
-              portalContainer={portalContainer}
-              side="top"
-              sideOffset={4}
-            >
-              {t(copied ? 'search.results.copied' : 'search.results.copy')}
-            </TooltipContent>
-          </Tooltip>
-          <div className="flex items-center gap-0.5">
-            {workspaceActionsVisible ? (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={workspaceActionState !== null}
-                      aria-label={t(
-                        'search.results.extendByDays',
-                        [workspaceExpiryDays],
-                        workspaceExpiryDays,
-                      )}
-                      onClick={() => onExtendWorkspaceItem?.(item)}
-                    >
-                      {workspaceActionPending === 'extend' ? (
-                        <LoaderCircle
-                          className="size-4 animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <CalendarPlus className="size-4" aria-hidden="true" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    portalContainer={portalContainer}
-                    side="top"
-                    sideOffset={4}
-                  >
-                    {t(
-                      'search.results.extendByDays',
-                      [workspaceExpiryDays],
-                      workspaceExpiryDays,
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={workspaceActionState !== null}
-                      aria-label={t('search.results.promote')}
-                      onClick={() => onPromoteWorkspaceItem?.(item)}
-                    >
-                      {workspaceActionPending === 'promote' ? (
-                        <LoaderCircle
-                          className="size-4 animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <ShieldCheck className="size-4" aria-hidden="true" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    portalContainer={portalContainer}
-                    side="top"
-                    sideOffset={4}
-                  >
-                    {t('search.results.promote')}
-                  </TooltipContent>
-                </Tooltip>
-              </>
-            ) : null}
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={t('search.results.edit')}
-                  onClick={() => onEdit(item)}
-                >
-                  <Pencil className="size-4" aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent
-                portalContainer={portalContainer}
-                side="top"
-                sideOffset={4}
-              >
-                {t('search.results.edit')}
-              </TooltipContent>
-            </Tooltip>
-
-            <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={t('search.results.delete')}
-                    >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                    </Button>
-                  </AlertDialogTrigger>
-                </TooltipTrigger>
-                <TooltipContent
-                  portalContainer={portalContainer}
-                  side="top"
-                  sideOffset={4}
-                >
-                  {t('search.results.delete')}
-                </TooltipContent>
-              </Tooltip>
-              <AlertDialogContent
-                portalContainer={portalContainer}
-                size="sm"
-                data-snippet-vault-ui="true"
-              >
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t('search.results.delete')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t('search.results.deleteConfirm')}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>
-                    {t('search.results.deleteCancel')}
-                  </AlertDialogCancel>
-                  <AlertDialogAction variant="destructive" onClick={handleDelete}>
-                    {t('search.results.delete')}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </div>
-      </TooltipProvider>
-
-      {hasSourceRow ? (
-        <div
-          className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+      <div
+        ref={contentRef}
+        id={contentId}
+        className={cn(
+          !expanded && 'max-h-24 overflow-hidden',
+          !expanded && overflowing && 'mask-b-from-60%',
+        )}
+      >
+        <MarkdownContent markdown={item.content} query={query} flush />
+      </div>
+      {overflowing || expanded ? (
+        <button
+          type="button"
+          className="mt-1 text-xs text-muted-foreground hover:text-foreground"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={() => setExpanded((current) => !current)}
         >
-          {item.kind === 'vault' && item.pinned ? (
-            <span className="flex size-5 items-center justify-center text-primary">
-              <Pin
-                className="size-3.5"
-                aria-label={t('search.results.pinned')}
-              />
-            </span>
-          ) : null}
-          {sourceText ? (
-            <>
-              <Globe2 className="size-3.5 shrink-0" aria-hidden="true" />
-              {item.source?.url ? (
-                <a
-                  href={item.source.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="min-w-0 truncate underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-foreground"
-                  title={sourceText}
-                >
-                  <HighlightedText text={sourceText} query={query} />
-                </a>
-              ) : (
-                <span className="min-w-0 truncate" title={sourceText}>
-                  <HighlightedText text={sourceText} query={query} />
-                </span>
-              )}
-            </>
-          ) : null}
-        </div>
+          {t(expanded ? 'search.results.collapse' : 'search.results.expand')}
+        </button>
       ) : null}
 
-      {matchedSourceUrl && matchedSourceUrl !== sourceText ? (
-        <a
-          href={matchedSourceUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="mt-1 block truncate font-mono text-xs text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-foreground"
-        >
-          <HighlightedText text={matchedSourceUrl} query={query} />
-        </a>
-      ) : null}
-
-      {hasMetadata ? (
-        <div
-          className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
-        >
+      <div className="mt-2 flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {item.labels.map((label) => {
             const localizedName = getLocalizedLabelName(
               label.id,
@@ -398,43 +219,219 @@ export function SearchResultItem({
               </Badge>
             );
           })}
-          {contextText ? (
-            <span
-              className="inline-flex max-w-full min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
-              aria-label={t('search.results.context', [contextText])}
-              title={t('search.results.context', [contextText])}
-            >
-              {contextColor ? (
-                <ContextMarker color={contextColor} />
-              ) : null}
-              <span className="truncate">
-                <HighlightedText text={contextText} query={query} />
-              </span>
+          {sourceText ? (
+            // Long page titles would push the timestamp and actions to a new
+            // line; cap the width and keep the full title in `title`.
+            <span className="flex max-w-64 min-w-0 items-center gap-1">
+              <Globe2 className="size-3.5 shrink-0" aria-hidden="true" />
+              {item.source?.url ? (
+                <a
+                  href={item.source.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="min-w-0 truncate underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-foreground"
+                  title={sourceText}
+                >
+                  <HighlightedText text={sourceText} query={query} />
+                </a>
+              ) : (
+                <span className="min-w-0 truncate" title={sourceText}>
+                  <HighlightedText text={sourceText} query={query} />
+                </span>
+              )}
             </span>
           ) : null}
+          <span className="flex shrink-0 items-center gap-1 tabular-nums">
+            <Clock3 className="size-3.5" aria-hidden="true" />
+            {item.kind === 'workspace'
+              ? t('search.results.expires', [
+                  dateTimeFormatter.format(new Date(item.expiresAt)),
+                ])
+              : t('search.results.updated', [
+                  dateTimeFormatter.format(new Date(item.updatedAt)),
+                ])}
+          </span>
+          {/* Right after the timestamp so the actions sit near the content
+              instead of the far edge of a wide panel. */}
+          <TooltipProvider>
+            <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-data-[selected=true]:opacity-100">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={t(
+                      copied ? 'search.results.copied' : 'search.results.copy',
+                    )}
+                    onClick={() => void handleCopy()}
+                  >
+                    {copied ? (
+                      <Check className="size-4 text-primary" aria-hidden="true" />
+                    ) : (
+                      <Copy className="size-4" aria-hidden="true" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  portalContainer={portalContainer}
+                  side="top"
+                  sideOffset={4}
+                >
+                  {t(copied ? 'search.results.copied' : 'search.results.copy')}
+                </TooltipContent>
+              </Tooltip>
+              <div className="flex items-center gap-0.5">
+                {workspaceActionsVisible ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={workspaceActionState !== null}
+                          aria-label={t(
+                            'search.results.extendByDays',
+                            [workspaceExpiryDays],
+                            workspaceExpiryDays,
+                          )}
+                          onClick={() => onExtendWorkspaceItem?.(item)}
+                        >
+                          {workspaceActionPending === 'extend' ? (
+                            <LoaderCircle
+                              className="size-4 animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <CalendarPlus className="size-4" aria-hidden="true" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        portalContainer={portalContainer}
+                        side="top"
+                        sideOffset={4}
+                      >
+                        {t(
+                          'search.results.extendByDays',
+                          [workspaceExpiryDays],
+                          workspaceExpiryDays,
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={workspaceActionState !== null}
+                          aria-label={t('search.results.promote')}
+                          onClick={() => onPromoteWorkspaceItem?.(item)}
+                        >
+                          {workspaceActionPending === 'promote' ? (
+                            <LoaderCircle
+                              className="size-4 animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <ShieldCheck className="size-4" aria-hidden="true" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        portalContainer={portalContainer}
+                        side="top"
+                        sideOffset={4}
+                      >
+                        {t('search.results.promote')}
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                ) : null}
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t('search.results.edit')}
+                      onClick={() => onEdit(item)}
+                    >
+                      <Pencil className="size-4" aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    portalContainer={portalContainer}
+                    side="top"
+                    sideOffset={4}
+                  >
+                    {t('search.results.edit')}
+                  </TooltipContent>
+                </Tooltip>
+
+                <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={t('search.results.delete')}
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                        </Button>
+                      </AlertDialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      portalContainer={portalContainer}
+                      side="top"
+                      sideOffset={4}
+                    >
+                      {t('search.results.delete')}
+                    </TooltipContent>
+                  </Tooltip>
+                  <AlertDialogContent
+                    portalContainer={portalContainer}
+                    size="sm"
+                    data-snippet-vault-ui="true"
+                  >
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{t('search.results.delete')}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {t('search.results.deleteConfirm')}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>
+                        {t('search.results.deleteCancel')}
+                      </AlertDialogCancel>
+                      <AlertDialogAction variant="destructive" onClick={handleDelete}>
+                        {t('search.results.delete')}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+          </TooltipProvider>
         </div>
+      </div>
+
+      {matchedSourceUrl && matchedSourceUrl !== sourceText ? (
+        <a
+          href={matchedSourceUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="mt-1 block truncate font-mono text-xs text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-foreground"
+        >
+          <HighlightedText text={matchedSourceUrl} query={query} />
+        </a>
       ) : null}
 
-      <div>
-        <MarkdownContent
-          markdown={item.content}
-          query={query}
-          flush={!hasSourceRow && !hasMetadata}
-        />
-      </div>
-
-      <div className="mt-2 flex justify-start text-xs text-muted-foreground">
-        <span className="flex shrink-0 items-center gap-1 tabular-nums">
-          <Clock3 className="size-3.5" aria-hidden="true" />
-          {item.kind === 'workspace'
-            ? t('search.results.expires', [
-                dateTimeFormatter.format(new Date(item.expiresAt)),
-              ])
-            : t('search.results.updated', [
-                dateTimeFormatter.format(new Date(item.updatedAt)),
-              ])}
-        </span>
-      </div>
       <span className="sr-only" aria-live="polite">
         {copied ? t('search.results.copied') : null}
       </span>

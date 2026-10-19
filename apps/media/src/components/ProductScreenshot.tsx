@@ -32,9 +32,9 @@ export const ProductScreenshot = ({
           borderRadius: mediaTheme.radius.frame,
           boxShadow: mediaTheme.shadow,
           display: "block",
-          height: "100%",
+          maxHeight: "100%",
+          maxWidth: "100%",
           objectFit: "contain",
-          width: "100%",
         }}
       />
     ) : (

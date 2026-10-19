@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MAX_BACKUP_CONTENT_LENGTH,
-  MAX_CONTEXT_PRESET_NAME_LENGTH,
   MAX_LABEL_NAME_LENGTH,
   hasExtensionMessageType,
   isExtensionRequest,
@@ -126,7 +125,6 @@ describe('save-selection message contract', () => {
           content: 'one-time-code',
           labelIds: [],
           temporary: true,
-          contextId: 'environment:test',
         },
       }),
     ).toBe(true);
@@ -163,27 +161,6 @@ describe('save-selection message contract', () => {
       ).toBe(false);
     }
 
-    for (const payload of [
-      {
-        content: '**deployment token**',
-        labelIds: ['token'],
-        temporary: false,
-        context: 'legacy',
-      },
-      {
-        content: '**deployment token**',
-        labelIds: ['token'],
-        temporary: false,
-        contextId: '',
-      },
-    ]) {
-      expect(
-        isExtensionRequest({
-          type: 'snippet-vault/save-selection',
-          payload,
-        }),
-      ).toBe(false);
-    }
   });
 });
 
@@ -197,7 +174,6 @@ describe('create-snippet message contract', () => {
             kind,
             content: '# Deployment\n\nKeep this value close.',
             labelIds: ['token', 'client-id'],
-            contextId: 'environment:production',
           },
         }),
       ).toBe(true);
@@ -261,32 +237,11 @@ describe('create-snippet message contract', () => {
       ).toBe(false);
     }
 
-    for (const payload of [
-      {
-        kind: 'vault',
-        content: 'deployment token',
-        labelIds: ['token'],
-        context: 'legacy',
-      },
-      {
-        kind: 'vault',
-        content: 'deployment token',
-        labelIds: ['token'],
-        contextId: '',
-      },
-    ]) {
-      expect(
-        isExtensionRequest({
-          type: 'snippet-vault/create-snippet',
-          payload,
-        }),
-      ).toBe(false);
-    }
   });
 });
 
 describe('management message contract', () => {
-  it('accepts label and context management requests', () => {
+  it('accepts label management requests', () => {
     for (const message of [
       { type: 'snippet-vault/get-label-management' },
       {
@@ -297,46 +252,8 @@ describe('management message contract', () => {
         type: 'snippet-vault/archive-label',
         payload: { id: 'custom:1' },
       },
-      { type: 'snippet-vault/get-context-presets' },
-      { type: 'snippet-vault/get-context-preset-management' },
-      {
-        type: 'snippet-vault/create-context-preset',
-        payload: {
-          name: 'Shared QA',
-          environment: 'test',
-          color: 'amber',
-        },
-      },
-      {
-        type: 'snippet-vault/rename-context-preset',
-        payload: {
-          id: 'context:1',
-          name: 'Shared QA',
-          color: 'purple',
-        },
-      },
-      {
-        type: 'snippet-vault/restore-context-preset',
-        payload: { id: 'context:1' },
-      },
     ]) {
       expect(isExtensionRequest(message)).toBe(true);
-    }
-  });
-
-  it('rejects malformed context preset names, environments, and colors', () => {
-    for (const payload of [
-      { name: '   ' },
-      { name: 'x'.repeat(MAX_CONTEXT_PRESET_NAME_LENGTH + 1) },
-      { name: 'Shared QA', environment: 'prod' },
-      { name: 'Shared QA', color: 'pink' },
-    ]) {
-      expect(
-        isExtensionRequest({
-          type: 'snippet-vault/create-context-preset',
-          payload,
-        }),
-      ).toBe(false);
     }
   });
 });
@@ -351,7 +268,6 @@ describe('search-panel message contract', () => {
           query: 'deployment token',
           page: 0,
           pageSize: 20,
-          contextId: 'environment:production',
           labelId: 'token',
         },
       }),
@@ -364,7 +280,6 @@ describe('search-panel message contract', () => {
       { kind: 'vault', query: '', page: -1, pageSize: 20 },
       { kind: 'vault', query: '', page: 0.5, pageSize: 20 },
       { kind: 'vault', query: '', page: 0, pageSize: 51 },
-      { kind: 'vault', query: '', page: 0, pageSize: 20, contextId: '' },
       { kind: 'vault', query: '', page: 0, pageSize: 20, labelId: 7 },
     ]) {
       expect(
@@ -412,7 +327,7 @@ describe('workspace lifecycle message contract', () => {
 });
 
 describe('update-snippet message contract', () => {
-  it('accepts vault and workspace updates with explicit context actions', () => {
+  it('accepts vault and workspace updates without context actions', () => {
     expect(
       isExtensionRequest({
         type: 'snippet-vault/update-snippet',
@@ -422,7 +337,6 @@ describe('update-snippet message contract', () => {
           expectedUpdatedAt: 100,
           content: 'updated token',
           labelIds: ['token'],
-          context: { mode: 'preserve' },
         },
       }),
     ).toBe(true);
@@ -436,14 +350,13 @@ describe('update-snippet message contract', () => {
           expectedUpdatedAt: 100,
           content: 'updated note',
           labelIds: [],
-          context: { mode: 'set', contextId: 'environment:test' },
           expiresAt: 2_000,
         },
       }),
     ).toBe(true);
   });
 
-  it('rejects invalid optimistic concurrency, context, and expiry payloads', () => {
+  it('rejects invalid optimistic concurrency and expiry payloads', () => {
     for (const payload of [
       {
         kind: 'vault',
@@ -458,22 +371,6 @@ describe('update-snippet message contract', () => {
         expectedUpdatedAt: -1,
         content: 'updated token',
         labelIds: ['token'],
-      },
-      {
-        kind: 'vault',
-        id: 'vault-1',
-        expectedUpdatedAt: 100,
-        content: 'updated token',
-        labelIds: ['token'],
-        context: { mode: 'set' },
-      },
-      {
-        kind: 'vault',
-        id: 'vault-1',
-        expectedUpdatedAt: 100,
-        content: 'updated token',
-        labelIds: ['token'],
-        context: { mode: 'clear', contextId: 'environment:test' },
       },
       {
         kind: 'vault',
@@ -527,6 +424,17 @@ describe('request locale', () => {
       };
       expect(isExtensionRequest(message)).toBe(false);
       expect(hasExtensionMessageType(message)).toBe(true);
+    }
+  });
+});
+
+
+describe('retired context messages', () => {
+  it('rejects all removed request types', () => {
+    for (const type of ['archive-context-preset', 'create-context-preset', 'get-context-preset-management', 'get-context-presets', 'rename-context-preset', 'restore-context-preset']) {
+      const message = { type: `snippet-vault/${type}`, payload: { id: 'old', name: 'Old' } };
+      expect(isExtensionRequest(message)).toBe(false);
+      expect(hasExtensionMessageType(message)).toBe(false);
     }
   });
 });

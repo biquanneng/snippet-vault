@@ -10,17 +10,13 @@ import {
 } from 'react';
 import {
   BriefcaseBusiness,
-  ChevronDown,
-  ChevronUp,
   Plus,
   RefreshCw,
-  RotateCcw,
   ShieldCheck,
   Tag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { ContextMarker } from '../../../components/context-marker';
 import { Button } from '../../../components/ui/button';
 import {
   Tabs,
@@ -37,8 +33,6 @@ import {
 import {
   MESSAGE_TYPE,
   sendExtensionMessage,
-  type ContextPresetManagementListData,
-  type ContextPresetSummary,
   type DeleteItemData,
   type ExtensionErrorCode,
   type ExtensionResponse,
@@ -50,12 +44,15 @@ import {
   type SearchPanelKind,
   type SearchPanelRequest,
 } from '../../../lib/browser/message-contract';
+import {
+  readDocumentSource,
+  type PageSource,
+} from '../../../lib/browser/page-source';
 import { toIntlLocale, type Translator } from '../../../lib/i18n-catalog';
 import { getLocalizedLabelName } from '../../../lib/localized-values';
 import { useI18n } from '../../../lib/use-i18n';
 import { getWorkspaceExpiryDays } from '../../../lib/workspace-expiry';
 import { SearchInputBar } from './SearchInputBar';
-import { getVisibleFilterOptions } from './filter-option-visibility';
 import { getMutationStatusMessages } from './mutation-status';
 import {
   getNextSearchResultSelectionId,
@@ -66,7 +63,6 @@ import { copySearchPanelItemContent } from './SearchResultItem';
 import { SnippetForm } from './SnippetForm';
 
 const PAGE_SIZE = 12;
-const COLLAPSED_CONTEXT_LIMIT = 4;
 
 type SnippetFormState =
   | { mode: 'create' }
@@ -80,10 +76,11 @@ interface SearchPanelCapabilities {
 interface SearchPanelContentProps {
   inputRef: Ref<HTMLInputElement>;
   capabilities?: SearchPanelCapabilities;
-  compactToolbar?: boolean;
   portalContainer?: HTMLElement;
   toolbarEnd?: ReactNode;
   requestSender?: SearchPanelRequestSender;
+  /** Source suggested for new snippets; defaults to the current document. */
+  getPageSource?: () => Promise<PageSource | null>;
 }
 
 interface WorkspaceActionState {
@@ -98,10 +95,10 @@ export type SearchPanelRequestSender = (
 export function SearchPanelContent({
   inputRef,
   capabilities,
-  compactToolbar = false,
   portalContainer,
   toolbarEnd,
   requestSender = sendSearchPanelRequest,
+  getPageSource = readCurrentDocumentSource,
 }: SearchPanelContentProps) {
   const { locale, t } = useI18n();
   const resultsId = useId();
@@ -117,12 +114,6 @@ export function SearchPanelContent({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [formState, setFormState] = useState<SnippetFormState | null>(null);
-  const [contexts, setContexts] = useState<ContextPresetSummary[]>([]);
-  const [contextsLoading, setContextsLoading] = useState(false);
-  const [contextsError, setContextsError] = useState<string | null>(null);
-  const [contextsRevision, setContextsRevision] = useState(0);
-  const [selectedContextId, setSelectedContextId] = useState<string>();
-  const [contextsExpanded, setContextsExpanded] = useState(false);
   const [selectedLabelFilter, setSelectedLabelFilter] =
     useState<LabelSummary>();
   const [workspaceExpiryDays, setWorkspaceExpiryDays] = useState(7);
@@ -155,49 +146,6 @@ export function SearchPanelContent({
     keyboardSelectionActive && selectedResult
       ? getSearchResultOptionId(resultsId, selectedResult.id)
       : undefined;
-  const collapsedContexts = getVisibleFilterOptions(
-    contexts,
-    selectedContextId,
-    COLLAPSED_CONTEXT_LIMIT,
-  );
-  const displayedContexts = contextsExpanded ? contexts : collapsedContexts;
-  const hiddenContextCount = Math.max(
-    0,
-    contexts.length - collapsedContexts.length,
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    setContextsLoading(true);
-    setContextsError(null);
-
-    void sendExtensionMessage<ContextPresetManagementListData>({
-      type: MESSAGE_TYPE.getContextPresetManagement,
-    }).then((response) => {
-      if (cancelled) {
-        return;
-      }
-      setContextsLoading(false);
-      if (!response.ok) {
-        setContexts([]);
-        setContextsError(response.error.message);
-        return;
-      }
-
-      setContexts(response.data.contextPresets);
-      setSelectedContextId((current) =>
-        current &&
-        response.data.contextPresets.some((context) => context.id === current)
-          ? current
-          : undefined,
-      );
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [contextsRevision, locale]);
-
   useEffect(() => {
     if (!workspaceLifecycleActionsEnabled) {
       setWorkspaceActionState(null);
@@ -244,7 +192,6 @@ export function SearchPanelContent({
         query: submittedQuery,
         page,
         pageSize: PAGE_SIZE,
-        ...(selectedContextId ? { contextId: selectedContextId } : {}),
         ...(selectedLabelFilter ? { labelId: selectedLabelFilter.id } : {}),
       },
     }).then((response) => {
@@ -279,7 +226,6 @@ export function SearchPanelContent({
     page,
     refreshKey,
     requestSender,
-    selectedContextId,
     selectedLabelFilter,
     submittedQuery,
   ]);
@@ -311,18 +257,6 @@ export function SearchPanelContent({
       return;
     }
     setKind(value);
-    setKeyboardSelectionActive(false);
-    setPage(0);
-    setData(null);
-  }
-
-  function toggleContextFilter(contextId?: string) {
-    if (formOpen) {
-      return;
-    }
-    setSelectedContextId((current) =>
-      current === contextId ? undefined : contextId,
-    );
     setKeyboardSelectionActive(false);
     setPage(0);
     setData(null);
@@ -560,6 +494,7 @@ export function SearchPanelContent({
       kind={editedItem?.kind ?? kind}
       item={editedItem}
       portalContainer={portalContainer}
+      getPageSource={getPageSource}
       onCancel={() => setFormState(null)}
       onSaved={(continueCreating) =>
         handleSnippetSaved(formState.mode, continueCreating)
@@ -571,221 +506,123 @@ export function SearchPanelContent({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain">
-      <header className="shrink-0 px-4 pt-1">
-        <SearchInputBar
-          ref={inputRef}
-          kind={kind}
-          query={draftQuery}
-          disabled={formOpen}
-          activeDescendantId={activeDescendantId}
-          hasActiveResult={
-            keyboardSelectionActive && Boolean(selectedResult)
-          }
-          resultActionsEnabled={resultActionsEnabled}
-          portalContainer={portalContainer}
-          resultsAvailable={resultActionsEnabled}
-          resultsId={resultsId}
-          onClear={clearQuery}
-          onNavigateResults={moveSelectedResult}
-          onOpenSelectedResult={openSelectedResult}
-          onQueryChange={setDraftQuery}
-          onSearch={submitQuery}
-          onSelectResultPrimaryAction={handleSelectedResultCopy}
-        />
-      </header>
+      {/* The form carries its own heading; search and tabs would only be
+          disabled chrome while it is open. */}
+      {formOpen ? null : (
+        <header className="shrink-0 px-3 pt-1">
+          <SearchInputBar
+            ref={inputRef}
+            kind={kind}
+            query={draftQuery}
+            activeDescendantId={activeDescendantId}
+            hasActiveResult={
+              keyboardSelectionActive && Boolean(selectedResult)
+            }
+            resultActionsEnabled={resultActionsEnabled}
+            portalContainer={portalContainer}
+            resultsAvailable={resultActionsEnabled}
+            resultsId={resultsId}
+            onClear={clearQuery}
+            onNavigateResults={moveSelectedResult}
+            onOpenSelectedResult={openSelectedResult}
+            onQueryChange={setDraftQuery}
+            onSearch={submitQuery}
+            onSelectResultPrimaryAction={handleSelectedResultCopy}
+          />
+        </header>
+      )}
 
       <Tabs
         value={kind}
         onValueChange={changeKind}
         className="min-h-0 flex-1 gap-0 overflow-hidden"
       >
-        <div
-          className={
-            compactToolbar
-              ? 'flex shrink-0 items-center justify-between gap-2 bg-muted/30 px-3 py-2'
-              : 'flex shrink-0 flex-col gap-2 bg-muted/30 px-4 py-2 sm:flex-row sm:items-center sm:justify-between'
-          }
-        >
-          <TabsList className={compactToolbar ? undefined : 'w-full sm:w-auto'}>
-            <TabsTrigger
-              value="vault"
-              className={compactToolbar ? 'px-1.5' : 'px-2'}
-              disabled={formOpen}
-            >
-              <ShieldCheck aria-hidden="true" />
-              {t('search.tabs.vault')}
-            </TabsTrigger>
-            <TabsTrigger
-              value="workspace"
-              className={compactToolbar ? 'px-1.5' : 'px-2'}
-              disabled={formOpen}
-            >
-              <BriefcaseBusiness aria-hidden="true" />
-              {t('search.tabs.workspace')}
-            </TabsTrigger>
-          </TabsList>
-          <div
-            className={
-              compactToolbar
-                ? 'flex shrink-0 items-center gap-2'
-                : 'flex min-w-0 items-center gap-2'
-            }
-          >
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={formOpen}
-              aria-pressed={formState?.mode === 'create'}
-              onClick={openCreateForm}
-              className={
-                compactToolbar
-                  ? 'shrink-0'
-                  : 'min-w-0 flex-1 sm:flex-none'
-              }
-            >
-              <Plus aria-hidden="true" />
-              <span className="truncate">{t('search.create.open')}</span>
-            </Button>
-            <div className="flex shrink-0 items-center gap-1">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={formOpen || loading}
-                      onClick={refreshResults}
-                      aria-label={t('search.refresh')}
-                    >
-                      <RefreshCw
-                        aria-hidden="true"
-                        className={loading ? 'animate-spin' : ''}
-                      />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    portalContainer={portalContainer}
-                    side="top"
-                    sideOffset={4}
-                  >
-                    {t('search.refresh')}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              {toolbarEnd && !formOpen ? (
-                <div className="flex items-center gap-1">
-                  {toolbarEnd}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        {!formOpen ? (
-          <div className="shrink-0 space-y-2 px-4 py-2.5">
-            <div
-              className="flex min-w-0 flex-wrap items-center gap-1.5"
-              role="group"
-              aria-label={t('search.filters.contextGroup')}
-            >
-              <span className="mr-0.5 text-xs text-muted-foreground">
-                {t('search.filters.context')}
-              </span>
+        {formOpen ? null : (
+          <div className="flex shrink-0 flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger
+                value="vault"
+                className="px-2"
+              >
+                <ShieldCheck aria-hidden="true" />
+                {t('search.tabs.vault')}
+              </TabsTrigger>
+              <TabsTrigger
+                value="workspace"
+                className="px-2"
+              >
+                <BriefcaseBusiness aria-hidden="true" />
+                {t('search.tabs.workspace')}
+              </TabsTrigger>
+            </TabsList>
+            <div className="flex min-w-0 items-center gap-2">
               <Button
                 type="button"
-                variant={selectedContextId ? 'ghost' : 'secondary'}
-                size="xs"
-                aria-pressed={!selectedContextId}
-                onClick={() => toggleContextFilter()}
+                variant="secondary"
+                size="sm"
+                onClick={openCreateForm}
+                className="min-w-0 flex-1 sm:flex-none"
               >
-                {t('search.filters.contextAll')}
+                <Plus aria-hidden="true" />
+                <span className="truncate">{t('search.create.open')}</span>
               </Button>
-              {displayedContexts.map((context) => (
-                <Button
-                  key={context.id}
-                  type="button"
-                  variant={
-                    selectedContextId === context.id ? 'secondary' : 'ghost'
-                  }
-                  size="xs"
-                  aria-pressed={selectedContextId === context.id}
-                  onClick={() => toggleContextFilter(context.id)}
-                >
-                  <ContextMarker color={context.color} />
-                  <span className="max-w-40 truncate">{context.name}</span>
-                </Button>
-              ))}
-              {hiddenContextCount > 0 ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  aria-expanded={contextsExpanded}
-                  onClick={() =>
-                    setContextsExpanded((current) => !current)
-                  }
-                  className="text-muted-foreground"
-                >
-                  {contextsExpanded ? (
-                    <ChevronUp aria-hidden="true" />
-                  ) : (
-                    <ChevronDown aria-hidden="true" />
-                  )}
-                  {t(
-                    contextsExpanded
-                      ? 'search.filters.collapseContexts'
-                      : 'search.filters.expandContexts',
-                    contextsExpanded ? undefined : [hiddenContextCount],
-                  )}
-                </Button>
-              ) : null}
-              {contextsLoading ? (
-                <RefreshCw
-                  className="size-3.5 animate-spin text-muted-foreground"
-                  aria-label={t('search.results.loading')}
-                />
-              ) : null}
+              <div className="flex shrink-0 items-center gap-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={loading}
+                        onClick={refreshResults}
+                        aria-label={t('search.refresh')}
+                      >
+                        <RefreshCw
+                          aria-hidden="true"
+                          className={loading ? 'animate-spin' : ''}
+                        />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      portalContainer={portalContainer}
+                      side="top"
+                      sideOffset={4}
+                    >
+                      {t('search.refresh')}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {toolbarEnd ? (
+                  <div className="flex items-center gap-1">
+                    {toolbarEnd}
+                  </div>
+                ) : null}
+              </div>
             </div>
-            {contextsError ? (
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-destructive">
-                  {t('search.filters.contextLoadFailed')}
-                </p>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="xs"
-                  onClick={() =>
-                    setContextsRevision((current) => current + 1)
-                  }
-                >
-                  <RotateCcw aria-hidden="true" />
-                  {t('search.filters.retry')}
-                </Button>
-              </div>
-            ) : null}
-            {selectedLabelFilter ? (
-              <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <Tag className="size-3.5 shrink-0" aria-hidden="true" />
-                <span>{t('search.filters.label')}</span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="xs"
-                  onClick={() => toggleLabelFilter(selectedLabelFilter)}
-                  aria-label={t('search.filters.clearLabel')}
-                  title={t('search.filters.clearLabel')}
-                >
-                  {getLocalizedLabelName(
-                    selectedLabelFilter.id,
-                    selectedLabelFilter.name,
-                    locale,
-                  )}
-                </Button>
-              </div>
-            ) : null}
+          </div>
+        )}
+
+        {!formOpen && selectedLabelFilter ? (
+          <div className="shrink-0 px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <Tag className="size-3.5 shrink-0" aria-hidden="true" />
+              <span>{t('search.filters.label')}</span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="xs"
+                onClick={() => toggleLabelFilter(selectedLabelFilter)}
+                aria-label={t('search.filters.clearLabel')}
+                title={t('search.filters.clearLabel')}
+              >
+                {getLocalizedLabelName(
+                  selectedLabelFilter.id,
+                  selectedLabelFilter.name,
+                  locale,
+                )}
+              </Button>
+            </div>
           </div>
         ) : null}
 
@@ -840,3 +677,7 @@ function getWorkspaceActionErrorDescription(
 
 const sendSearchPanelRequest: SearchPanelRequestSender = (request) =>
   sendExtensionMessage<SearchPanelData>(request);
+
+async function readCurrentDocumentSource(): Promise<PageSource | null> {
+  return readDocumentSource();
+}

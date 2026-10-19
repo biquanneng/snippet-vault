@@ -30,12 +30,12 @@ export const storeCopy: Record<
     search: {
       headline: "Find any snippet in seconds.",
       description:
-        "Search locally, filter by context or label, and copy without breaking your flow.",
+        "Search content, labels, and sources locally, then copy without breaking your flow.",
     },
     capture: {
-      headline: "Select. Save. Keep moving.",
+      headline: "Copy twice. Saved.",
       description:
-        "Capture selected text; add a label or context only when it helps.",
+        "Press Command/Ctrl+C twice. Credential labels are detected locally.",
     },
     "in-page-search": {
       headline: "Double-Shift to search anywhere.",
@@ -48,19 +48,19 @@ export const storeCopy: Record<
         "Let short-lived snippets expire, extend them, or promote them when they become useful.",
     },
     "local-backup": {
-      headline: "Local by default. Back up when you choose.",
+      headline: "Local by default. Encrypted backups.",
       description:
-        "Export and restore a readable backup from Settings, with no account or cloud service.",
+        "No account or cloud. Export a passphrase-encrypted backup from Settings and restore it anytime.",
     },
   },
   "zh-CN": {
     search: {
       headline: "几秒内找到需要的片段。",
-      description: "本地检索，按 Context 或 Label 筛选，并直接复制。",
+      description: "在本地搜索正文、标签和来源，并直接复制。",
     },
     capture: {
-      headline: "选中、保存，继续当前工作。",
-      description: "直接保存网页选区，只在有帮助时添加 Label 或 Context。",
+      headline: "复制两次，即已保存。",
+      description: "按两次 Command/Ctrl+C 保存选区，并在本地自动识别凭据标签。",
     },
     "in-page-search": {
       headline: "双击 Shift，随处检索。",
@@ -71,8 +71,8 @@ export const storeCopy: Record<
       description: "短期片段可以自动过期、延期，或者转为永久保存。",
     },
     "local-backup": {
-      headline: "默认留在本地，按需备份。",
-      description: "无需账号和云服务，直接从设置中导出或恢复可读备份。",
+      headline: "默认留在本地，备份加密。",
+      description: "无需账号和云服务，从设置中导出口令加密的备份，随时恢复。",
     },
   },
 };

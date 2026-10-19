@@ -1,20 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import type {
-  ContextPreset,
   ItemKind,
   ItemReference,
   StoredRecord,
 } from './model';
 import {
-  ENVIRONMENT_DEFINITIONS,
   getBuiltInLabelAliases,
-  getLocalizedEnvironmentName,
 } from '../localized-values';
 
 export const SEARCH_FIELDS = [
   'labelText',
-  'context',
   'sourceTitle',
   'sourceUrl',
   'sourceDomain',
@@ -25,7 +21,6 @@ export interface SearchDocument {
   id: string;
   kind: 'vault' | 'workspace';
   labelText: string;
-  context: string;
   sourceTitle: string;
   sourceUrl: string;
   sourceDomain: string;
@@ -63,13 +58,8 @@ export function fromSearchDocumentId(id: string): ItemReference | null {
 export function createSearchDocument(
   record: StoredRecord,
   labelNames: ReadonlyMap<string, string>,
-  contextPresets: ReadonlyMap<string, ContextPreset>,
 ): SearchDocument {
   const source = record.item.source;
-  const context = getContextSearchText(
-    record.item.contextId,
-    contextPresets,
-  );
   return {
     id: toSearchDocumentId({ kind: record.kind, id: record.item.id }),
     kind: record.kind,
@@ -82,37 +72,9 @@ export function createSearchDocument(
         ];
       })
       .join(' '),
-    context,
     sourceTitle: source?.title ?? '',
     sourceUrl: source?.url ?? '',
     sourceDomain: source?.domain ?? '',
     content: record.item.content,
   };
-}
-
-function getContextSearchText(
-  contextId: string | undefined,
-  contextPresets: ReadonlyMap<string, ContextPreset>,
-): string {
-  if (!contextId) {
-    return '';
-  }
-
-  const preset = contextPresets.get(contextId);
-  if (!preset) {
-    return '';
-  }
-
-  return [
-    preset.name,
-    ...(preset.environment
-      ? [
-          ENVIRONMENT_DEFINITIONS[preset.environment].canonicalContext,
-          getLocalizedEnvironmentName(preset.environment, 'en'),
-          getLocalizedEnvironmentName(preset.environment, 'zh_CN'),
-        ]
-      : []),
-  ]
-    .filter(Boolean)
-    .join(' ');
 }
