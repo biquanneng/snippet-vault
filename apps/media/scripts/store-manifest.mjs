@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: MPL-2.0 */
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
-export const storeLocales = ["en", "zh-CN"];
+export const storeLocales = ["en"];
 
 export const storeSlides = [
   {
@@ -53,5 +55,14 @@ export const storePromos = [
   },
 ];
 
-export const getScreenshotPath = (locale, slide) =>
-  `screenshots/chrome-store/${locale}/${slide.fileName}`;
+export const getScreenshotPath = (locale, slide) => {
+  const localized = `screenshots/chrome-store/${locale}/${slide.fileName}`;
+  if (existsSync(resolve("public", localized))) {
+    return localized;
+  }
+  const direct = `screenshots/${slide.fileName}`;
+  if (existsSync(resolve("public", direct))) {
+    return direct;
+  }
+  return localized;
+};

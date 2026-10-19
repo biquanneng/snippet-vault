@@ -1,26 +1,29 @@
 // SPDX-License-Identifier: MPL-2.0
 
+import { Document, isAlias, isMap, parseDocument, visit } from 'yaml';
+
 import {
-  CONTEXT_COLORS,
-  type ContextEnvironment,
-  type ContextPreset,
   type Label,
   type StoredRecord,
   type VaultItem,
-  type WorkspaceItem,
 } from './core/model';
+import { MAX_LABELS_PER_ITEM, migrateLegacyContexts, type LegacyContextPreset, type LegacyStoredRecord } from './core/context-migration';
+import type { EnvironmentValue } from './localized-values';
+
+const CONTEXT_COLORS = ['slate', 'blue', 'cyan', 'green', 'amber', 'orange', 'red', 'purple'] as const;
 
 export const BACKUP_FORMAT = 'snippet-vault-export';
-export const BACKUP_FORMAT_VERSION = 1;
+export const BACKUP_FORMAT_VERSION = 2;
 
 const MAX_ID_LENGTH = 200;
-const MAX_LABEL_NAME_LENGTH = 50;
+// Legacy contexts allowed 500-character names. Converted labels must remain
+// exportable; the interactive label-creation contract retains its 50-char limit.
+const MAX_LABEL_NAME_LENGTH = 500;
 const MAX_CONTEXT_PRESET_NAME_LENGTH = 500;
 const MAX_CONTENT_LENGTH = 100_000;
 const MAX_SOURCE_TITLE_LENGTH = 500;
 const MAX_SOURCE_URL_LENGTH = 2_048;
 const MAX_SOURCE_DOMAIN_LENGTH = 253;
-const MAX_LABELS_PER_ITEM = 100;
 const MAX_LABELS = 10_000;
 const MAX_CONTEXT_PRESETS = 10_000;
 const MAX_ITEMS = 100_000;
@@ -30,9 +33,10 @@ const CONTEXT_ENVIRONMENTS = [
   'test',
   'staging',
   'production',
-] as const satisfies readonly ContextEnvironment[];
+] as const satisfies readonly EnvironmentValue[];
 
 export type BackupFormatErrorCode =
+  | 'encrypted'
   | 'invalid'
   | 'unsupported';
 
@@ -49,11 +53,11 @@ export class BackupFormatError extends Error {
 
 export interface BackupSnapshot {
   labels: Label[];
-  contextPresets: ContextPreset[];
   records: StoredRecord[];
 }
 
 export interface ParsedBackup {
+  formatVersion: 1 | 2;
   snapshot: BackupSnapshot;
   exportedAt: number;
 }
@@ -67,7 +71,6 @@ interface BackupDocument {
   formatVersion: typeof BACKUP_FORMAT_VERSION;
   exportedAt: string;
   labels: ExportedLabel[];
-  contextPresets: ExportedContextPreset[];
   items: ExportedItem[];
 }
 
@@ -81,21 +84,10 @@ interface ExportedLabel {
   updatedAt: string;
 }
 
-interface ExportedContextPreset {
-  id: string;
-  name: string;
-  color?: string;
-  environment?: string;
-  archivedAt?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 interface ExportedBaseItem {
   id: string;
   content: string;
   labelIds: string[];
-  contextId?: string;
   source?: {
     title?: string;
     url?: string;
@@ -118,7 +110,7 @@ interface ExportedWorkspaceItem extends ExportedBaseItem {
 
 type ExportedItem = ExportedVaultItem | ExportedWorkspaceItem;
 
-/** Serializes a validated v1 backup as deterministic JSON. */
+/** Serializes a validated v2 backup as deterministic plaintext YAML. */
 export function serializeBackup(
   snapshot: BackupSnapshot,
   options: BackupSerializationOptions = {},
@@ -129,19 +121,50 @@ export function serializeBackup(
   const document = toBackupDocument(snapshot, exportedAt);
   // Parsing the emitted form keeps the serializer and importer under one
   // invariant, including cross-record references.
-  parseBackupDocument(document);
-  return JSON.stringify(document);
+  const yaml = new Document(document, {
+    schema: 'core',
+    aliasDuplicateObjects: false,
+    customTags: (tags) => tags.map((tag) => {
+      if (typeof tag !== 'object' || tag.tag !== 'tag:yaml.org,2002:str' || !tag.stringify) return tag;
+      const stringify = tag.stringify;
+      return {
+        ...tag,
+        stringify(item, context, onComment, onChompKeep) {
+          const value = item.value;
+          // yaml otherwise quotes a value ending in a whitespace-only line.
+          // An explicit indentation indicator and strip chomping preserve it
+          // in literal style. Control characters still use yaml's quoted form.
+          if (typeof value === 'string' && /\n[\t ]+$/.test(value) &&
+              !/[\x00-\x08\x0b-\x1f\x7f-\x9f\u{D800}-\u{DFFF}]/u.test(value)) {
+            return `|2-\n${context.indent}${value.replace(/\n/g, `\n${context.indent}`)}`;
+          }
+          return stringify(item, context, onComment, onChompKeep);
+        },
+      };
+    }),
+  });
+  const serialized = yaml.toString({
+    blockQuote: 'literal',
+    lineWidth: 0,
+    doubleQuotedAsJSON: true,
+  });
+  parseBackup(serialized);
+  return serialized;
 }
 
-/** Parses a v1 JSON export into the core storage representation. */
+/** v1 JSON remains readable, including legacy contexts; exports use v2 YAML. */
 export function parseBackup(serialized: string): ParsedBackup {
-  return parseBackupDocument(parseJson(serialized));
+  if (typeof serialized !== 'string' || serialized.trim().length === 0) {
+    throw backupError('invalid', 'Backup data must be JSON or YAML text.');
+  }
+  return parseBackupDocument(
+    serialized.trimStart().startsWith('{') ? parseJson(serialized) : parseYaml(serialized),
+  );
 }
 
 function toBackupDocument(snapshot: BackupSnapshot, exportedAt: number): BackupDocument {
   assertObject(snapshot, 'snapshot');
   assertArray(snapshot.labels, 'snapshot.labels');
-  assertArray(snapshot.contextPresets, 'snapshot.contextPresets');
   assertArray(snapshot.records, 'snapshot.records');
 
   return {
@@ -149,7 +172,6 @@ function toBackupDocument(snapshot: BackupSnapshot, exportedAt: number): BackupD
     formatVersion: BACKUP_FORMAT_VERSION,
     exportedAt: toIsoTimestamp(exportedAt, 'exportedAt'),
     labels: snapshot.labels.map(toExportedLabel),
-    contextPresets: snapshot.contextPresets.map(toExportedContextPreset),
     items: snapshot.records.map(toExportedItem),
   };
 }
@@ -170,66 +192,36 @@ function toExportedLabel(label: Label): ExportedLabel {
   };
 }
 
-function toExportedContextPreset(
-  preset: ContextPreset,
-): ExportedContextPreset {
-  return {
-    id: preset.id,
-    name: preset.name,
-    ...(preset.color === undefined ? {} : { color: preset.color }),
-    ...(preset.environment === undefined
-      ? {}
-      : { environment: preset.environment }),
-    ...(preset.archivedAt === undefined
-      ? {}
-      : { archivedAt: toIsoTimestamp(preset.archivedAt, 'context.archivedAt') }),
-    createdAt: toIsoTimestamp(preset.createdAt, 'context.createdAt'),
-    updatedAt: toIsoTimestamp(preset.updatedAt, 'context.updatedAt'),
-  };
-}
-
 function toExportedItem(record: StoredRecord): ExportedItem {
   const item = record.item;
-  const base: ExportedBaseItem = {
+  return {
     id: item.id,
-    content: item.content,
-    labelIds: [...item.labelIds],
-    ...(item.contextId === undefined ? {} : { contextId: item.contextId }),
+    ...(record.kind === 'vault'
+      ? {
+          kind: 'vault',
+          labelIds: [...item.labelIds],
+          pinned: record.item.pinned,
+          ...(record.item.lastUsedAt === undefined
+            ? {}
+            : { lastUsedAt: toIsoTimestamp(record.item.lastUsedAt, 'item.lastUsedAt') }),
+        }
+      : {
+          kind: 'workspace',
+          labelIds: [...item.labelIds],
+          expiresAt: toIsoTimestamp(record.item.expiresAt, 'item.expiresAt'),
+        }),
     ...(item.source === undefined
       ? {}
       : {
           source: {
             ...(item.source.title === undefined ? {} : { title: item.source.title }),
             ...(item.source.url === undefined ? {} : { url: item.source.url }),
-            ...(item.source.domain === undefined
-              ? {}
-              : { domain: item.source.domain }),
+            ...(item.source.domain === undefined ? {} : { domain: item.source.domain }),
           },
         }),
     createdAt: toIsoTimestamp(item.createdAt, 'item.createdAt'),
     updatedAt: toIsoTimestamp(item.updatedAt, 'item.updatedAt'),
-  };
-  if (record.kind === 'vault') {
-    const vaultItem = record.item as VaultItem;
-    return {
-      ...base,
-      kind: 'vault',
-      pinned: vaultItem.pinned,
-      ...(vaultItem.lastUsedAt === undefined
-        ? {}
-        : {
-            lastUsedAt: toIsoTimestamp(
-              vaultItem.lastUsedAt,
-              'item.lastUsedAt',
-            ),
-          }),
-    };
-  }
-  const workspaceItem = record.item as WorkspaceItem;
-  return {
-    ...base,
-    kind: 'workspace',
-    expiresAt: toIsoTimestamp(workspaceItem.expiresAt, 'item.expiresAt'),
+    content: item.content,
   };
 }
 
@@ -249,11 +241,12 @@ function parseBackupDocument(value: unknown): ParsedBackup {
 
   const exportedAt = parseIsoTimestamp(document.exportedAt, 'exportedAt');
   assertArray(document.labels, 'labels');
-  assertArray(document.contextPresets, 'contextPresets');
+  const legacyPresets = document.contextPresets === undefined ? [] : document.contextPresets;
+  assertArray(legacyPresets, 'contextPresets');
   assertArray(document.items, 'items');
   assertMaximumLength(document.labels, MAX_LABELS, 'labels');
   assertMaximumLength(
-    document.contextPresets,
+    legacyPresets,
     MAX_CONTEXT_PRESETS,
     'contextPresets',
   );
@@ -262,14 +255,16 @@ function parseBackupDocument(value: unknown): ParsedBackup {
   const labels = document.labels.map((label, index) =>
     parseLabel(label, `labels[${index}]`),
   );
-  const contextPresets = document.contextPresets.map((preset, index) =>
+  const contextPresets = legacyPresets.map((preset, index) =>
     parseContextPreset(preset, `contextPresets[${index}]`),
   );
   const records = document.items.map((item, index) =>
     parseRecord(item, `items[${index}]`),
   );
-  validateSnapshot({ labels, contextPresets, records });
-  return { snapshot: { labels, contextPresets, records }, exportedAt };
+  assertUnique(contextPresets.map((preset) => preset.id), 'contextPresets');
+  const snapshot = migrateLegacyContexts({ labels, contextPresets, records });
+  validateSnapshot(snapshot);
+  return { snapshot, exportedAt, formatVersion: document.formatVersion };
 }
 
 function parseLabel(value: unknown, path: string): Label {
@@ -301,7 +296,7 @@ function parseLabel(value: unknown, path: string): Label {
   };
 }
 
-function parseContextPreset(value: unknown, path: string): ContextPreset {
+function parseContextPreset(value: unknown, path: string): LegacyContextPreset {
   const preset = assertExactObject(value, path, [
     'id',
     'name',
@@ -338,7 +333,7 @@ function parseContextPreset(value: unknown, path: string): ContextPreset {
   };
 }
 
-function parseRecord(value: unknown, path: string): StoredRecord {
+function parseRecord(value: unknown, path: string): LegacyStoredRecord {
   const candidate = assertObject(value, path);
   if (candidate.kind === 'vault') {
     const item = parseBaseItem(candidate, path, ['kind', 'pinned', 'lastUsedAt']);
@@ -377,7 +372,7 @@ function parseBaseItem(
   value: Record<string, unknown>,
   path: string,
   kindKeys: string[],
-): Omit<VaultItem, 'pinned' | 'lastUsedAt'> {
+): Omit<VaultItem, 'pinned' | 'lastUsedAt'> & { contextId?: string } {
   const item = assertExactObject(value, path, [
     'id',
     'content',
@@ -444,7 +439,6 @@ function parseSource(
 
 function validateSnapshot(snapshot: BackupSnapshot): void {
   assertUnique(snapshot.labels.map((label) => label.id), 'labels');
-  assertUnique(snapshot.contextPresets.map((preset) => preset.id), 'contextPresets');
   assertUnique(
     snapshot.records
       .filter((record) => record.kind === 'vault')
@@ -459,16 +453,52 @@ function validateSnapshot(snapshot: BackupSnapshot): void {
   );
 
   const labelIds = new Set(snapshot.labels.map((label) => label.id));
-  const contextIds = new Set(snapshot.contextPresets.map((preset) => preset.id));
   for (const record of snapshot.records) {
     for (const labelId of record.item.labelIds) {
       if (!labelIds.has(labelId)) {
         throw backupError('invalid', `Item ${record.item.id} references an unknown label.`);
       }
     }
-    if (record.item.contextId && !contextIds.has(record.item.contextId)) {
-      throw backupError('invalid', `Item ${record.item.id} references an unknown context preset.`);
+  }
+}
+
+function parseYaml(serialized: string): unknown {
+  try {
+    // parseDocument rejects trailing documents. Disable YAML 1.1 tag resolution
+    // even when a document supplies directives, and never expand aliases.
+    const document = parseDocument(serialized, {
+      schema: 'core',
+      customTags: [],
+      resolveKnownTags: false,
+      merge: false,
+      uniqueKeys: true,
+      stringKeys: true,
+      strict: true,
+      version: '1.2',
+    });
+    if (document.errors.length || document.warnings.length || !isMap(document.contents)) {
+      throw backupError('invalid', 'Backup data must be a single YAML mapping.');
     }
+    const coreTags = new Set([
+      'tag:yaml.org,2002:map', 'tag:yaml.org,2002:seq',
+      'tag:yaml.org,2002:str', 'tag:yaml.org,2002:null',
+      'tag:yaml.org,2002:bool', 'tag:yaml.org,2002:int', 'tag:yaml.org,2002:float',
+    ]);
+    visit(document, {
+      Node(_key, node) {
+        if (isAlias(node) || (node.tag && !coreTags.has(node.tag))) {
+          throw backupError('invalid', 'Backup YAML cannot contain aliases or non-core tags.');
+        }
+      },
+    });
+    const value: unknown = document.toJS({ maxAliasCount: 0 });
+    if (Object.hasOwn(assertObject(value, 'backup'), 'encryption')) {
+      throw backupError('encrypted', 'Decrypt this backup before importing it.');
+    }
+    return value;
+  } catch (error) {
+    if (error instanceof BackupFormatError) throw error;
+    throw backupError('invalid', 'Backup data is not valid YAML.');
   }
 }
 
@@ -483,14 +513,14 @@ function parseJson(serialized: string): unknown {
   }
 }
 
-function assertFormatVersion(value: unknown): void {
+function assertFormatVersion(value: unknown): asserts value is 1 | 2 {
   if (typeof value !== 'number' || !Number.isInteger(value)) {
     throw backupError('invalid', 'Backup formatVersion must be an integer.');
   }
   if (value > BACKUP_FORMAT_VERSION) {
     throw backupError('unsupported', 'This backup was created by a newer SnippetVault version.');
   }
-  if (value !== BACKUP_FORMAT_VERSION) {
+  if (value !== 1 && value !== 2) {
     throw backupError('unsupported', 'This backup format version is unsupported.');
   }
 }

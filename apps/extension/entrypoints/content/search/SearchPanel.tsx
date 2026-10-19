@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import { useRef } from 'react';
+import { Settings2 } from 'lucide-react';
 
+import { Button } from '../../../components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -9,6 +11,13 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Kbd } from '../../../components/ui/kbd';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../../components/ui/tooltip';
+import { OPEN_SETTINGS_MESSAGE } from '../../../lib/browser/in-page-panel';
 import { useI18n } from '../../../lib/use-i18n';
 import {
   SearchPanelContent,
@@ -42,7 +51,7 @@ export function SearchPanel({
         portalContainer={portalContainer}
         showCloseButton={false}
         data-snippet-vault-ui="true"
-        className="flex h-3/4 min-h-80 flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:w-11/12 sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl"
+        className="flex h-3/4 min-h-80 flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:w-11/12 sm:max-w-3xl"
         onBackdropPointerDown={(event) => {
           event.preventDefault();
           onClose();
@@ -60,15 +69,46 @@ export function SearchPanel({
         </DialogDescription>
 
         <SearchPanelContent
-          capabilities={{ workspaceLifecycleActions: true }}
+          capabilities={{
+            enhancedCreate: true,
+            workspaceLifecycleActions: true,
+          }}
           inputRef={inputRef}
           portalContainer={portalContainer}
           requestSender={requestSender}
           toolbarEnd={(
-            <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-              <Kbd>ESC</Kbd>
-              {t('search.dialog.close')}
-            </span>
+            <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() =>
+                        void browser.runtime.sendMessage({
+                          type: OPEN_SETTINGS_MESSAGE,
+                        })
+                      }
+                      aria-label={t('settings.open')}
+                    >
+                      <Settings2 aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    portalContainer={portalContainer}
+                    side="top"
+                    sideOffset={4}
+                  >
+                    {t('settings.open')}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                <Kbd>ESC</Kbd>
+                {t('search.dialog.close')}
+              </span>
+            </>
           )}
         />
       </DialogContent>

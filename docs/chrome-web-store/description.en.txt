@@ -1,0 +1,47 @@
+Keep the developer text you reuse close at hand.
+
+SnippetVault is a local-first Chrome extension for saving webpage selections
+and manually entered snippets — access keys, tokens, endpoints, commands,
+notes — and finding them again when you need them.
+
+✨ Save without a form
+
+- Select content on a webpage and press Command/Ctrl+C twice. The first copy
+  is a normal browser copy; the second saves the selection as Markdown with
+  its page title and URL.
+- A short confirmation offers Undo, Move to vault, or turning quick save off
+  for the current page or site.
+- Common credential formats are labeled for you, detected locally: AWS and
+  Alibaba Cloud access key IDs, GitHub tokens, JWTs, sk- API keys, PEM and SSH
+  keys, and database connection strings.
+- Or create a text or Markdown snippet with New; it remembers the page you
+  were on, and you can remove the source before saving.
+
+🔎 Find it again
+
+- Double-press Shift on a webpage, or click the toolbar icon, to open search
+  over the page you are working on.
+- Search content, labels, and sources, then copy, edit, or delete a result.
+- Search results in the Vault are grouped by source site.
+
+⏳ Temporary workspace
+
+- Quick saves land in a temporary workspace by default. Let short-lived
+  snippets expire, extend them, or move them permanently to the Vault.
+
+🔒 Local by default
+
+- No account, cloud sync, or AI service. Optional anonymous usage analytics is
+  off by default and never includes your saved data or searches.
+- Snippets stay in the extension's local IndexedDB.
+- Backups are readable YAML files, encrypted with a passphrase by default
+  (AES-256-GCM). A plaintext export is also available.
+- Records stored in the browser are not encrypted. SnippetVault is not a
+  password manager or encrypted secret vault.
+
+Available in English and Simplified Chinese, with light and dark themes.
+
+SnippetVault is open source under the Mozilla Public License 2.0:
+https://github.com/biquanneng/snippet-vault
+
+If SnippetVault saves you time, a star on GitHub helps other developers find it.

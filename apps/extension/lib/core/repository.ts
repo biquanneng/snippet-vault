@@ -2,7 +2,6 @@
 
 import type {
   ConditionalMutationResult,
-  ContextPreset,
   ItemReference,
   Label,
   MutationResult,
@@ -39,7 +38,6 @@ export interface VaultRepository {
     expectedUpdatedAt: number,
   ): Promise<ConditionalMutationResult>;
   putLabel(label: Label): Promise<MutationResult>;
-  putContextPreset(preset: ContextPreset): Promise<MutationResult>;
   touchLabelUsage(id: string, time: number): Promise<MutationResult>;
   deleteItem(reference: ItemReference): Promise<MutationResult>;
   promoteWorkspaceItem(
@@ -60,9 +58,6 @@ export interface VaultRepository {
   getItems(references: ItemReference[]): Promise<StoredRecord[]>;
   listActiveRecords(now: number): Promise<StoredRecord[]>;
   listLabels(options?: { includeArchived?: boolean }): Promise<Label[]>;
-  listContextPresets(
-    options?: { includeArchived?: boolean },
-  ): Promise<ContextPreset[]>;
 
   close(): Promise<void>;
 }

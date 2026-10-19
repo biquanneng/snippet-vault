@@ -1,31 +1,20 @@
 // SPDX-License-Identifier: MPL-2.0
 
-import {
-  CONTEXT_COLORS,
-  type ContextColor,
-  type ContextEnvironment,
-} from '../core/model';
 import { getUiLocale } from '../i18n';
 import { translate, type SupportedLocale } from '../i18n-catalog';
 
 export const MESSAGE_TYPE = {
-  archiveContextPreset: 'snippet-vault/archive-context-preset',
   archiveLabel: 'snippet-vault/archive-label',
-  createContextPreset: 'snippet-vault/create-context-preset',
   createLabel: 'snippet-vault/create-label',
   createSnippet: 'snippet-vault/create-snippet',
   deleteItem: 'snippet-vault/delete-item',
   exportBackup: 'snippet-vault/export-backup',
   extendWorkspaceItem: 'snippet-vault/extend-workspace-item',
-  getContextPresetManagement: 'snippet-vault/get-context-preset-management',
-  getContextPresets: 'snippet-vault/get-context-presets',
   getLabelManagement: 'snippet-vault/get-label-management',
   getLabels: 'snippet-vault/get-labels',
   importBackup: 'snippet-vault/import-backup',
   inspectBackup: 'snippet-vault/inspect-backup',
-  renameContextPreset: 'snippet-vault/rename-context-preset',
   renameLabel: 'snippet-vault/rename-label',
-  restoreContextPreset: 'snippet-vault/restore-context-preset',
   restoreLabel: 'snippet-vault/restore-label',
   promoteWorkspaceItem: 'snippet-vault/promote-workspace-item',
   saveSelection: 'snippet-vault/save-selection',
@@ -34,8 +23,10 @@ export const MESSAGE_TYPE = {
 } as const;
 
 export const MAX_LABEL_NAME_LENGTH = 50;
-export const MAX_CONTEXT_PRESET_NAME_LENGTH = 500;
+
 export const MAX_SELECTION_LENGTH = 100_000;
+export const MAX_SOURCE_TITLE_LENGTH = 500;
+export const MAX_SOURCE_URL_LENGTH = 2_048;
 export const MAX_SEARCH_QUERY_LENGTH = 500;
 export const MAX_SEARCH_PAGE_SIZE = 50;
 export const MAX_SEARCH_PAGE = 10_000;
@@ -83,53 +74,12 @@ export interface RestoreLabelRequest extends LocalizedRequest {
   };
 }
 
-export interface GetContextPresetsRequest extends LocalizedRequest {
-  type: typeof MESSAGE_TYPE.getContextPresets;
-}
-
-export interface GetContextPresetManagementRequest extends LocalizedRequest {
-  type: typeof MESSAGE_TYPE.getContextPresetManagement;
-}
-
-export interface CreateContextPresetRequest extends LocalizedRequest {
-  type: typeof MESSAGE_TYPE.createContextPreset;
-  payload: {
-    name: string;
-    color?: ContextColor;
-    environment?: ContextEnvironment;
-  };
-}
-
-export interface RenameContextPresetRequest extends LocalizedRequest {
-  type: typeof MESSAGE_TYPE.renameContextPreset;
-  payload: {
-    id: string;
-    name: string;
-    color?: ContextColor;
-  };
-}
-
-export interface ArchiveContextPresetRequest extends LocalizedRequest {
-  type: typeof MESSAGE_TYPE.archiveContextPreset;
-  payload: {
-    id: string;
-  };
-}
-
-export interface RestoreContextPresetRequest extends LocalizedRequest {
-  type: typeof MESSAGE_TYPE.restoreContextPreset;
-  payload: {
-    id: string;
-  };
-}
-
 export interface SaveSelectionRequest extends LocalizedRequest {
   type: typeof MESSAGE_TYPE.saveSelection;
   payload: {
     content: string;
     labelIds: string[];
     temporary: boolean;
-    contextId?: string;
     sourceTitle?: string;
   };
 }
@@ -142,7 +92,11 @@ export interface CreateSnippetRequest extends LocalizedRequest {
     kind: SearchPanelKind;
     content: string;
     labelIds: string[];
-    contextId?: string;
+    /** The page the user was on; only HTTP(S) URLs are kept. */
+    source?: {
+      title?: string;
+      url: string;
+    };
   };
 }
 
@@ -188,14 +142,6 @@ export interface PromoteWorkspaceItemRequest extends WorkspaceLifecycleRequest {
   type: typeof MESSAGE_TYPE.promoteWorkspaceItem;
 }
 
-export type UpdateSnippetContextSelection =
-  | { mode: 'preserve' }
-  | { mode: 'clear' }
-  | {
-      mode: 'set';
-      contextId: string;
-    };
-
 interface UpdateSnippetRequestBase extends LocalizedRequest {
   type: typeof MESSAGE_TYPE.updateSnippet;
   payload: {
@@ -204,7 +150,6 @@ interface UpdateSnippetRequestBase extends LocalizedRequest {
     expectedUpdatedAt: number;
     content: string;
     labelIds: string[];
-    context?: UpdateSnippetContextSelection;
   };
 }
 
@@ -233,30 +178,23 @@ export interface SearchPanelRequest extends LocalizedRequest {
     query: string;
     page: number;
     pageSize: number;
-    contextId?: string;
     labelId?: string;
   };
 }
 
 export type VaultDataRequest =
-  | ArchiveContextPresetRequest
   | ArchiveLabelRequest
-  | CreateContextPresetRequest
   | CreateLabelRequest
   | CreateSnippetRequest
   | DeleteItemRequest
   | ExportBackupRequest
   | ExtendWorkspaceItemRequest
-  | GetContextPresetManagementRequest
-  | GetContextPresetsRequest
   | GetLabelManagementRequest
   | GetLabelsRequest
   | ImportBackupRequest
   | InspectBackupRequest
-  | RenameContextPresetRequest
   | RenameLabelRequest
   | PromoteWorkspaceItemRequest
-  | RestoreContextPresetRequest
   | RestoreLabelRequest
   | SaveSelectionRequest
   | SearchPanelRequest
@@ -293,35 +231,13 @@ export interface MutationStatusData {
   updated: boolean;
 }
 
-export interface ContextPresetSummary {
-  id: string;
-  name: string;
-  color: ContextColor;
-  environment?: ContextEnvironment;
-}
-
-export interface ContextPresetManagementEntry extends ContextPresetSummary {
-  archivedAt?: number;
-  builtIn: boolean;
-}
-
-export interface ContextPresetListData {
-  contextPresets: ContextPresetSummary[];
-}
-
-export interface ContextPresetManagementListData {
-  contextPresets: ContextPresetManagementEntry[];
-}
-
-export interface CreateContextPresetData {
-  contextPreset: ContextPresetSummary;
-  created: boolean;
-  restored?: boolean;
-}
-
 export interface SaveSelectionData {
   id: string;
   kind: 'vault' | 'workspace';
+  updatedAt: number;
+  expiresAt?: number;
+  /** True when an identical active record already existed and was reused. */
+  duplicate: boolean;
   searchStatus: 'synchronized' | 'rebuild-required';
   labelStatus: 'updated' | 'stale';
 }
@@ -333,7 +249,7 @@ export interface DeleteItemData {
 export interface ExportBackupData {
   contents: string;
   fileName: string;
-  mimeType: 'application/json';
+  mimeType: 'application/yaml';
 }
 
 export interface BackupSummaryData {
@@ -341,7 +257,6 @@ export interface BackupSummaryData {
   formatVersion: number;
   counts: {
     labels: number;
-    contexts: number;
     vaultItems: number;
     workspaceItems: number;
   };
@@ -387,7 +302,6 @@ export interface SearchPanelSource {
 interface SearchPanelItemBase {
   id: string;
   content: string;
-  context?: ContextPresetSummary;
   labels: LabelSummary[];
   source?: SearchPanelSource;
   createdAt: number;
@@ -420,6 +334,7 @@ export interface SearchPanelData {
 }
 
 export type ExtensionErrorCode =
+  | 'ENCRYPTED_BACKUP'
   | 'BACKUP_TOO_LARGE'
   | 'CONFLICT'
   | 'INTERNAL_ERROR'
@@ -455,9 +370,7 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
 
   if (
     value.type === MESSAGE_TYPE.getLabels ||
-    value.type === MESSAGE_TYPE.getLabelManagement ||
-    value.type === MESSAGE_TYPE.getContextPresets ||
-    value.type === MESSAGE_TYPE.getContextPresetManagement
+    value.type === MESSAGE_TYPE.getLabelManagement
   ) {
     return true;
   }
@@ -504,9 +417,7 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
 
   if (
     value.type === MESSAGE_TYPE.archiveLabel ||
-    value.type === MESSAGE_TYPE.restoreLabel ||
-    value.type === MESSAGE_TYPE.archiveContextPreset ||
-    value.type === MESSAGE_TYPE.restoreContextPreset
+    value.type === MESSAGE_TYPE.restoreLabel
   ) {
     return (
       isRecord(value.payload) &&
@@ -529,22 +440,6 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
     );
   }
 
-  if (
-    value.type === MESSAGE_TYPE.createContextPreset ||
-    value.type === MESSAGE_TYPE.renameContextPreset
-  ) {
-    return (
-      isRecord(value.payload) &&
-      (value.type === MESSAGE_TYPE.createContextPreset ||
-        (typeof value.payload.id === 'string' && value.payload.id.length > 0)) &&
-      typeof value.payload.name === 'string' &&
-      value.payload.name.trim().length > 0 &&
-      value.payload.name.trim().length <= MAX_CONTEXT_PRESET_NAME_LENGTH &&
-      isContextEnvironment(value.payload.environment) &&
-      isOptionalContextColor(value.payload.color)
-    );
-  }
-
   if (value.type === MESSAGE_TYPE.createSnippet) {
     return (
       isRecord(value.payload) &&
@@ -552,8 +447,7 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
         value.payload.kind === 'workspace') &&
       typeof value.payload.content === 'string' &&
       isUniqueStringArray(value.payload.labelIds) &&
-      isOptionalNonEmptyString(value.payload.contextId) &&
-      value.payload.context === undefined
+      isOptionalCreateSource(value.payload.source)
     );
   }
 
@@ -573,8 +467,6 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
     typeof value.payload.content === 'string' &&
     typeof value.payload.temporary === 'boolean' &&
     isUniqueStringArray(value.payload.labelIds) &&
-    isOptionalNonEmptyString(value.payload.contextId) &&
-    value.payload.context === undefined &&
     isOptionalString(value.payload.sourceTitle)
   );
 }
@@ -657,24 +549,6 @@ function isOptionalNonEmptyString(value: unknown): boolean {
   return value === undefined || (typeof value === 'string' && value.length > 0);
 }
 
-function isContextEnvironment(value: unknown): boolean {
-  return (
-    value === undefined ||
-    value === 'development' ||
-    value === 'test' ||
-    value === 'staging' ||
-    value === 'production'
-  );
-}
-
-function isOptionalContextColor(value: unknown): boolean {
-  return (
-    value === undefined ||
-    (typeof value === 'string' &&
-      CONTEXT_COLORS.includes(value as ContextColor))
-  );
-}
-
 function isUniqueStringArray(value: unknown): value is string[] {
   if (!Array.isArray(value)) {
     return false;
@@ -705,7 +579,6 @@ function isSearchPanelPayload(value: unknown): boolean {
     value.query.length <= MAX_SEARCH_QUERY_LENGTH &&
     isBoundedInteger(value.page, 0, MAX_SEARCH_PAGE) &&
     isBoundedInteger(value.pageSize, 1, MAX_SEARCH_PAGE_SIZE) &&
-    isOptionalNonEmptyString(value.contextId) &&
     isOptionalNonEmptyString(value.labelId)
   );
 }
@@ -716,6 +589,21 @@ function isWorkspaceLifecyclePayload(value: unknown): boolean {
     typeof value.id === 'string' &&
     value.id.length > 0 &&
     isBoundedInteger(value.expectedUpdatedAt, 0, Number.MAX_SAFE_INTEGER)
+  );
+}
+
+function isOptionalCreateSource(value: unknown): boolean {
+  if (value === undefined) {
+    return true;
+  }
+  return (
+    isRecord(value) &&
+    typeof value.url === 'string' &&
+    value.url.length > 0 &&
+    value.url.length <= MAX_SOURCE_URL_LENGTH &&
+    (value.title === undefined ||
+      (typeof value.title === 'string' &&
+        value.title.length <= MAX_SOURCE_TITLE_LENGTH))
   );
 }
 
@@ -742,8 +630,7 @@ function isUpdateSnippetPayload(
       Number.MAX_SAFE_INTEGER,
     ) ||
     typeof value.content !== 'string' ||
-    !isUniqueStringArray(value.labelIds) ||
-    !isOptionalUpdateContextSelection(value.context)
+    !isUniqueStringArray(value.labelIds)
   ) {
     return false;
   }
@@ -755,27 +642,6 @@ function isUpdateSnippetPayload(
   return (
     value.expiresAt === undefined ||
     isBoundedInteger(value.expiresAt, 1, Number.MAX_SAFE_INTEGER)
-  );
-}
-
-function isOptionalUpdateContextSelection(
-  value: unknown,
-): value is UpdateSnippetContextSelection | undefined {
-  if (value === undefined) {
-    return true;
-  }
-  if (!isRecord(value) || typeof value.mode !== 'string') {
-    return false;
-  }
-
-  if (value.mode === 'preserve' || value.mode === 'clear') {
-    return value.contextId === undefined;
-  }
-
-  return (
-    value.mode === 'set' &&
-    typeof value.contextId === 'string' &&
-    value.contextId.length > 0
   );
 }
 

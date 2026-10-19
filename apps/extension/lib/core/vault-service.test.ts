@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FlexSearchIndex } from './flexsearch-index';
 import { IndexedDbVaultRepository } from './indexeddb-repository';
 import type {
-  ContextPreset,
   Label,
   StorageMeta,
   StoredRecord,
@@ -45,27 +44,10 @@ const noteLabel: Label = {
   updatedAt: 100,
 };
 
-const productionContextPreset: ContextPreset = {
-  id: 'context:atlas-production',
-  name: 'Project Atlas',
-  environment: 'production',
-  createdAt: 100,
-  updatedAt: 100,
-};
-
-const stagingContextPreset: ContextPreset = {
-  id: 'context:atlas-staging',
-  name: 'Project Atlas Staging',
-  environment: 'staging',
-  createdAt: 100,
-  updatedAt: 100,
-};
-
 const vaultItem: VaultItem = {
   id: 'vault-1',
   content: 'sk-live-meowdex',
   labelIds: [tokenLabel.id],
-  contextId: productionContextPreset.id,
   source: {
     title: 'Credentials',
     url: 'https://console.example.com/projects/meowdex/credentials',
@@ -97,19 +79,15 @@ afterEach(async () => {
 });
 
 describe('SnippetVaultService', () => {
-  it('coordinates repository writes with label, context, URL and content search', async () => {
+  it('coordinates repository writes with label, URL and content search', async () => {
     await service.saveLabel(tokenLabel);
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
 
     for (const query of [
       'token',
-      'atlas',
-      'production',
       'console.example',
       'credentials',
       'sk live',
-      'token production',
     ]) {
       const results = await service.search(query);
       expect(results[0]).toMatchObject({
@@ -123,7 +101,7 @@ describe('SnippetVaultService', () => {
     expect(meta.indexedRevision).toBe(meta.dataRevision);
   });
 
-  it('indexes locale aliases from labels and context presets without changing stored records', async () => {
+  it('indexes locale aliases from labels without changing stored records', async () => {
     const passwordLabel: Label = {
       id: 'password',
       name: '密码',
@@ -131,23 +109,15 @@ describe('SnippetVaultService', () => {
       createdAt: 100,
       updatedAt: 100,
     };
-    const localizedContextPreset: ContextPreset = {
-      id: 'context:localized-production',
-      name: '支付系统',
-      environment: 'production',
-      createdAt: 100,
-      updatedAt: 100,
-    };
     const localizedItem: VaultItem = {
       ...vaultItem,
       id: 'localized-vault',
       content: 'credential-value',
-      labelIds: [passwordLabel.id],
-      contextId: localizedContextPreset.id,
+      labelIds: [passwordLabel.id, 'environment:production'],
     };
 
     await service.saveLabel(passwordLabel);
-    await service.saveContextPreset(localizedContextPreset);
+    await service.saveLabel({ id: 'environment:production', name: '生产环境', usageCount: 1, createdAt: 100, updatedAt: 100 });
     await service.saveVaultItem(localizedItem);
 
     for (const query of [
@@ -155,7 +125,6 @@ describe('SnippetVaultService', () => {
       '密码',
       'production',
       '生产环境',
-      '支付系统',
     ]) {
       await expect(service.search(query)).resolves.toMatchObject([
         {
@@ -172,12 +141,7 @@ describe('SnippetVaultService', () => {
         kind: 'vault',
         id: localizedItem.id,
       }),
-    ).resolves.toMatchObject({
-      kind: 'vault',
-      item: {
-        contextId: localizedContextPreset.id,
-      },
-    });
+    ).resolves.toMatchObject({ kind: 'vault', item: localizedItem });
   });
 
   it('indexes full access-key aliases for records created with the legacy label id', async () => {
@@ -196,7 +160,6 @@ describe('SnippetVaultService', () => {
     };
 
     await service.saveLabel(legacyAccessKeyLabel);
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(legacyAccessKeyItem);
 
     for (const query of ['AK', 'Access Key']) {
@@ -209,7 +172,6 @@ describe('SnippetVaultService', () => {
   });
 
   it('removes stale search hits after update and delete', async () => {
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
     await service.saveVaultItem({
       ...vaultItem,
@@ -217,7 +179,7 @@ describe('SnippetVaultService', () => {
       updatedAt: 200,
     });
 
-    await expect(service.search('atlas')).resolves.toHaveLength(1);
+    await expect(service.search('credentials')).resolves.toHaveLength(1);
     await expect(service.search('sk live')).resolves.toEqual([]);
     await expect(service.search('replacement')).resolves.toHaveLength(1);
 
@@ -227,7 +189,6 @@ describe('SnippetVaultService', () => {
 
   it('rebuilds denormalized search documents when a label is renamed', async () => {
     await service.saveLabel(tokenLabel);
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
     await service.saveLabel({
       ...tokenLabel,
@@ -239,65 +200,35 @@ describe('SnippetVaultService', () => {
     await expect(service.search('credential')).resolves.toHaveLength(1);
   });
 
-  it('rebuilds denormalized search documents when a context preset changes', async () => {
-    await service.saveLabel(tokenLabel);
-    await service.saveContextPreset(productionContextPreset);
-    await service.saveVaultItem(vaultItem);
-
-    const receipt = await service.saveContextPreset({
-      ...productionContextPreset,
-      name: 'Project Borealis',
-      environment: 'staging',
-      updatedAt: 200,
-    });
-
-    expect(receipt.searchStatus).toBe('synchronized');
-    await expect(service.search('atlas')).resolves.toEqual([]);
-    await expect(service.search('production')).resolves.toEqual([]);
-    await expect(service.search('borealis')).resolves.toHaveLength(1);
-    await expect(service.search('staging')).resolves.toHaveLength(1);
-    await expect(repository.getMeta()).resolves.toMatchObject({
-      indexedRevision: 4,
-      dataRevision: 4,
-    });
-  });
-
   it('keeps index revisions aligned after taxonomy metadata updates that do not affect documents', async () => {
     await service.saveLabel(tokenLabel);
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
 
     const usageReceipt = await service.touchLabelUsage(tokenLabel.id, 200);
 
     expect(usageReceipt.searchStatus).toBe('synchronized');
     await expect(repository.getMeta()).resolves.toMatchObject({
-      dataRevision: 4,
-      indexedRevision: 4,
+      dataRevision: 3,
+      indexedRevision: 3,
     });
   });
 
   it('serializes concurrent writes before searching', async () => {
     await Promise.all([
-      service.saveContextPreset(productionContextPreset),
-      service.saveContextPreset(stagingContextPreset),
-    ]);
-    await Promise.all([
-      service.saveVaultItem(vaultItem),
+      service.saveVaultItem({ ...vaultItem, content: 'first-concurrent-value' }),
       service.saveVaultItem({
         ...vaultItem,
         id: 'vault-2',
-        contextId: stagingContextPreset.id,
         content: 'second-concurrent-value',
       }),
     ]);
 
-    await expect(service.search('project atlas')).resolves.toHaveLength(2);
+    await expect(service.search('concurrent')).resolves.toHaveLength(2);
     const meta = await repository.getMeta();
     expect(meta.indexedRevision).toBe(meta.dataRevision);
   });
 
   it('allows only one concurrent conditional vault update to succeed', async () => {
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
 
     const [first, second] = await Promise.all([
@@ -343,12 +274,10 @@ describe('SnippetVaultService', () => {
       id: 'workspace-concurrent',
       content: 'temporary-value',
       labelIds: [],
-      contextId: productionContextPreset.id,
       createdAt: 100,
       updatedAt: 100,
       expiresAt: 1_000,
     };
-    await service.saveContextPreset(productionContextPreset);
     await service.saveWorkspaceItem(workspace);
 
     const [first, second] = await Promise.all([
@@ -397,12 +326,10 @@ describe('SnippetVaultService', () => {
       id: 'temporary',
       content: 'one-time-code',
       labelIds: [],
-      contextId: productionContextPreset.id,
       createdAt: 100,
       updatedAt: 100,
       expiresAt: 1_000,
     };
-    await service.saveContextPreset(productionContextPreset);
     await service.saveWorkspaceItem(workspaceItem);
 
     await expect(service.search('one time')).resolves.toHaveLength(1);
@@ -417,7 +344,6 @@ describe('SnippetVaultService', () => {
   });
 
   it('returns every record by newest creation time for an empty query', async () => {
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem({
       ...vaultItem,
       id: 'vault-newest',
@@ -435,7 +361,6 @@ describe('SnippetVaultService', () => {
       id: 'workspace-middle',
       content: 'temporary',
       labelIds: [],
-      contextId: productionContextPreset.id,
       createdAt: 300,
       updatedAt: 300,
       expiresAt: 1_000,
@@ -495,11 +420,9 @@ describe('SnippetVaultService', () => {
     ]);
   });
 
-  it('applies exact label and context filters before browse pagination', async () => {
+  it('applies exact label filters before browse pagination', async () => {
     await service.saveLabel(tokenLabel);
     await service.saveLabel(noteLabel);
-    await service.saveContextPreset(productionContextPreset);
-    await service.saveContextPreset(stagingContextPreset);
     await service.saveVaultItem(vaultItem);
     await service.saveVaultItem({
       ...vaultItem,
@@ -509,13 +432,12 @@ describe('SnippetVaultService', () => {
     await service.saveVaultItem({
       ...vaultItem,
       id: 'vault-staging',
-      contextId: stagingContextPreset.id,
+      labelIds: [noteLabel.id],
     });
     await service.saveWorkspaceItem({
       id: 'workspace-token',
       content: 'temporary',
       labelIds: [tokenLabel.id],
-      contextId: productionContextPreset.id,
       createdAt: 100,
       updatedAt: 100,
       expiresAt: 1_000,
@@ -525,7 +447,6 @@ describe('SnippetVaultService', () => {
       service.browse('vault', {
         offset: 0,
         limit: 10,
-        contextId: productionContextPreset.id,
         labelId: tokenLabel.id,
       }),
     ).resolves.toMatchObject({
@@ -545,7 +466,6 @@ describe('SnippetVaultService', () => {
         id: 'target',
         content: 'shared-search-term',
         labelIds: ['token'],
-        contextId: 'context:target',
         pinned: false,
         createdAt: 100,
         updatedAt: 100,
@@ -557,7 +477,6 @@ describe('SnippetVaultService', () => {
         id: 'distractor-a',
         content: 'shared-search-term',
         labelIds: ['note'],
-        contextId: 'context:target',
         pinned: false,
         createdAt: 100,
         updatedAt: 100,
@@ -568,8 +487,7 @@ describe('SnippetVaultService', () => {
       item: {
         id: 'distractor-b',
         content: 'shared-search-term',
-        labelIds: ['token'],
-        contextId: 'context:other',
+        labelIds: ['note'],
         pinned: false,
         createdAt: 100,
         updatedAt: 100,
@@ -584,10 +502,10 @@ describe('SnippetVaultService', () => {
 
     const filterRepository: VaultRepository = {
       getMeta: async (): Promise<StorageMeta> => ({
-        schemaVersion: 3,
+        schemaVersion: 4,
         dataRevision: 0,
         indexedRevision: 0,
-        searchSchemaVersion: 5,
+        searchSchemaVersion: 6,
       }),
       markSearchIndexed: async () => true,
       putVaultItem: async () => ({ changed: true, dataRevision: 1 }),
@@ -603,7 +521,6 @@ describe('SnippetVaultService', () => {
         outcome: 'updated',
       }),
       putLabel: async () => ({ changed: true, dataRevision: 1 }),
-      putContextPreset: async () => ({ changed: true, dataRevision: 1 }),
       touchLabelUsage: async () => ({ changed: true, dataRevision: 1 }),
       deleteItem: async () => ({ changed: false, dataRevision: 0 }),
       promoteWorkspaceItem: async () => ({
@@ -618,11 +535,10 @@ describe('SnippetVaultService', () => {
       }),
       readSnapshot: async () => ({
         labels: [],
-        contextPresets: [],
         records,
       }),
       readSnapshotWithRevision: async () => ({
-        snapshot: { labels: [], contextPresets: [], records },
+        snapshot: { labels: [], records },
         dataRevision: 0,
       }),
       replaceSnapshot: async () => ({
@@ -641,7 +557,6 @@ describe('SnippetVaultService', () => {
         ),
       listActiveRecords: async () => records,
       listLabels: async () => [],
-      listContextPresets: async () => [],
       close: async () => {},
     };
     const limitingSearchIndex: SearchIndex = {
@@ -670,7 +585,6 @@ describe('SnippetVaultService', () => {
       filterService.search('shared search', {
         kind: 'vault',
         labelId: 'token',
-        contextId: 'context:target',
         limit: 1,
       }),
     ).resolves.toEqual([
@@ -695,7 +609,6 @@ describe('SnippetVaultService', () => {
         id: 'active-target',
         content: 'shared-search-term',
         labelIds: ['token'],
-        contextId: 'context:target',
         createdAt: 100,
         updatedAt: 100,
         expiresAt: 1_000,
@@ -706,10 +619,10 @@ describe('SnippetVaultService', () => {
 
     const filterRepository: VaultRepository = {
       getMeta: async (): Promise<StorageMeta> => ({
-        schemaVersion: 3,
+        schemaVersion: 4,
         dataRevision: 1,
         indexedRevision: 1,
-        searchSchemaVersion: 5,
+        searchSchemaVersion: 6,
       }),
       markSearchIndexed: async () => true,
       putVaultItem: async () => ({ changed: true, dataRevision: 1 }),
@@ -725,7 +638,6 @@ describe('SnippetVaultService', () => {
         outcome: 'updated',
       }),
       putLabel: async () => ({ changed: true, dataRevision: 1 }),
-      putContextPreset: async () => ({ changed: true, dataRevision: 1 }),
       touchLabelUsage: async () => ({ changed: true, dataRevision: 1 }),
       deleteItem: async () => ({ changed: false, dataRevision: 1 }),
       promoteWorkspaceItem: async () => ({
@@ -745,11 +657,10 @@ describe('SnippetVaultService', () => {
       },
       readSnapshot: async () => ({
         labels: [],
-        contextPresets: [],
         records: [target],
       }),
       readSnapshotWithRevision: async () => ({
-        snapshot: { labels: [], contextPresets: [], records: [target] },
+        snapshot: { labels: [], records: [target] },
         dataRevision: 2,
       }),
       replaceSnapshot: async () => ({
@@ -768,7 +679,6 @@ describe('SnippetVaultService', () => {
           : [],
       listActiveRecords: async () => [target],
       listLabels: async () => [],
-      listContextPresets: async () => [],
       close: async () => {},
     };
     const limitingSearchIndex: SearchIndex = {
@@ -800,7 +710,6 @@ describe('SnippetVaultService', () => {
       filterService.search('shared search', {
         kind: 'workspace',
         labelId: 'token',
-        contextId: 'context:target',
         limit: 1,
       }),
     ).resolves.toEqual([
@@ -818,15 +727,10 @@ describe('SnippetVaultService', () => {
       ...noteLabel,
       archivedAt: 200,
     };
-    const archivedContextPreset: ContextPreset = {
-      ...stagingContextPreset,
-      archivedAt: 200,
-    };
     const activeWorkspace: WorkspaceItem = {
       id: 'active-workspace',
       content: 'active temporary value',
       labelIds: [tokenLabel.id],
-      contextId: productionContextPreset.id,
       createdAt: 100,
       updatedAt: 100,
       expiresAt: 1_000,
@@ -840,8 +744,6 @@ describe('SnippetVaultService', () => {
 
     await service.saveLabel(tokenLabel);
     await service.saveLabel(archivedLabel);
-    await service.saveContextPreset(productionContextPreset);
-    await service.saveContextPreset(archivedContextPreset);
     await service.saveVaultItem(vaultItem);
     await service.saveWorkspaceItem(activeWorkspace);
     await service.saveWorkspaceItem(expiredWorkspace);
@@ -850,16 +752,12 @@ describe('SnippetVaultService', () => {
     const { snapshot } = exported;
 
     expect(snapshot.labels).toEqual(expect.arrayContaining([tokenLabel, archivedLabel]));
-    expect(snapshot.contextPresets).toEqual(
-      expect.arrayContaining([productionContextPreset, archivedContextPreset]),
-    );
     expect(snapshot.records).toEqual([
       { kind: 'vault', item: vaultItem },
       { kind: 'workspace', item: activeWorkspace },
     ]);
     expect(snapshot).toMatchObject({
       labels: expect.arrayContaining([archivedLabel]),
-      contextPresets: expect.arrayContaining([archivedContextPreset]),
     });
     await expect(
       repository.getItem({ kind: 'workspace', id: expiredWorkspace.id }),
@@ -868,12 +766,10 @@ describe('SnippetVaultService', () => {
 
   it('replaces the snapshot before rebuilding a searchable index', async () => {
     await service.saveLabel(tokenLabel);
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
     const before = await repository.getMeta();
     const replacement: VaultSnapshot = {
       labels: [noteLabel],
-      contextPresets: [stagingContextPreset],
       records: [
         {
           kind: 'vault',
@@ -882,7 +778,6 @@ describe('SnippetVaultService', () => {
             id: 'replacement-vault',
             content: 'replacement searchable content',
             labelIds: [noteLabel.id],
-            contextId: stagingContextPreset.id,
           },
         },
       ],
@@ -952,7 +847,6 @@ describe('SnippetVaultService', () => {
     });
     const replacement: VaultSnapshot = {
       labels: [noteLabel],
-      contextPresets: [stagingContextPreset],
       records: [
         {
           kind: 'vault',
@@ -961,7 +855,6 @@ describe('SnippetVaultService', () => {
             id: 'replacement-after-failure',
             content: 'replacement data survives',
             labelIds: [noteLabel.id],
-            contextId: stagingContextPreset.id,
           },
         },
       ],
@@ -981,7 +874,6 @@ describe('SnippetVaultService', () => {
   });
 
   it('reuses a committed index after a service-worker-style restart', async () => {
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
     await service.close();
 
@@ -993,11 +885,10 @@ describe('SnippetVaultService', () => {
       clock: () => now,
     });
 
-    await expect(service.search('atlas')).resolves.toHaveLength(1);
+    await expect(service.search('credentials')).resolves.toHaveLength(1);
   });
 
   it('rebuilds the index when business data has a newer revision', async () => {
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
     await repository.putVaultItem({
       ...vaultItem,
@@ -1024,7 +915,6 @@ describe('SnippetVaultService', () => {
   });
 
   it('does not mark a partial incremental update as synchronized after an interleaved write', async () => {
-    await service.saveContextPreset(productionContextPreset);
     await service.saveVaultItem(vaultItem);
 
     const interleavedItem: VaultItem = {
@@ -1064,8 +954,8 @@ describe('SnippetVaultService', () => {
     expect(receipt.searchStatus).toBe('rebuild-required');
     const staleMeta = await repository.getMeta();
     expect(staleMeta).toMatchObject({
-      dataRevision: 4,
-      indexedRevision: 2,
+      dataRevision: 3,
+      indexedRevision: 1,
     });
 
     await expect(service.search('outside service')).resolves.toEqual([
@@ -1098,12 +988,10 @@ describe('SnippetVaultService', () => {
       clock: () => now,
     });
 
-    const receipt = await service.saveContextPreset(productionContextPreset);
+    const receipt = await service.saveVaultItem(vaultItem);
 
     expect(receipt.searchStatus).toBe('rebuild-required');
-    await expect(
-      repository.listContextPresets({ includeArchived: true }),
-    ).resolves.toEqual([productionContextPreset]);
+    await expect(repository.getItem({ kind: 'vault', id: vaultItem.id })).resolves.toEqual({ kind: 'vault', item: vaultItem });
     const meta = await repository.getMeta();
     expect(meta.indexedRevision).toBeLessThan(meta.dataRevision);
   });
@@ -1113,7 +1001,6 @@ describe('SnippetVaultService', () => {
       id: 'workspace-promote',
       content: 'temporary-value',
       labelIds: [],
-      contextId: productionContextPreset.id,
       createdAt: 100,
       updatedAt: 100,
       expiresAt: 1_000,
@@ -1126,7 +1013,6 @@ describe('SnippetVaultService', () => {
       createdAt: workspaceItem.createdAt,
       updatedAt: 200,
     };
-    await service.saveContextPreset(productionContextPreset);
     await service.saveWorkspaceItem(workspaceItem);
 
     const receipt = await service.promoteWorkspaceItem(
@@ -1158,12 +1044,10 @@ describe('SnippetVaultService', () => {
       id: 'workspace-promote-conflict',
       content: 'temporary-value',
       labelIds: [],
-      contextId: productionContextPreset.id,
       createdAt: 100,
       updatedAt: 100,
       expiresAt: 1_000,
     };
-    await service.saveContextPreset(productionContextPreset);
     await service.saveWorkspaceItem(workspaceItem);
     await service.saveWorkspaceItemIfUnchanged(
       {
@@ -1227,7 +1111,6 @@ describe('SnippetVaultService', () => {
       id: 'workspace-promote-failing-index',
       content: 'temporary-value',
       labelIds: [],
-      contextId: productionContextPreset.id,
       createdAt: 100,
       updatedAt: 100,
       expiresAt: 1_000,
@@ -1240,7 +1123,6 @@ describe('SnippetVaultService', () => {
       createdAt: workspaceItem.createdAt,
       updatedAt: 200,
     };
-    await service.saveContextPreset(productionContextPreset);
     await service.saveWorkspaceItem(workspaceItem);
 
     service = new SnippetVaultService({

@@ -3,45 +3,38 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  calculateTooltipPosition,
   getRangeSelectionBox,
+  getSelectableTextControl,
   isKeyboardSelectionEvent,
   isSelectionBoxVisible,
   normalizeSelectedText,
+  readTextControlSnapshot,
+  type TextControlLike,
 } from './selection';
+
+function textControl(
+  overrides: Partial<TextControlLike> = {},
+): TextControlLike {
+  return {
+    localName: 'input',
+    type: 'text',
+    value: 'key: sk-test-123',
+    selectionStart: 5,
+    selectionEnd: 16,
+    getBoundingClientRect: () => ({
+      left: 10,
+      right: 310,
+      top: 40,
+      bottom: 72,
+    }),
+    ...overrides,
+  };
+}
 
 describe('content selection helpers', () => {
   it('keeps selected whitespace while rejecting an empty selection', () => {
     expect(normalizeSelectedText('  secret value  ')).toBe('  secret value  ');
     expect(normalizeSelectedText(' \n\t ')).toBeNull();
-  });
-
-  it('places the tooltip above the selection when space is available', () => {
-    expect(
-      calculateTooltipPosition(
-        { left: 200, right: 300, top: 200, bottom: 220 },
-        { width: 240, height: 80 },
-        { width: 800, height: 600 },
-      ),
-    ).toEqual({
-      left: 130,
-      top: 112,
-      placement: 'above',
-    });
-  });
-
-  it('flips below and clamps to the viewport on narrow pages', () => {
-    expect(
-      calculateTooltipPosition(
-        { left: 0, right: 20, top: 5, bottom: 25 },
-        { width: 280, height: 100 },
-        { width: 300, height: 500 },
-      ),
-    ).toEqual({
-      left: 12,
-      top: 33,
-      placement: 'below',
-    });
   });
 
   it('reads the current range position so the tooltip can follow page scrolling', () => {
@@ -109,4 +102,42 @@ describe('content selection helpers', () => {
     ).toBe(true);
   });
 
+  it('reads an API key selected inside a text input or textarea', () => {
+    const input = textControl();
+    expect(getSelectableTextControl(input)).toBe(input);
+    expect(readTextControlSnapshot(input)).toEqual({
+      markdown: 'sk-test-123',
+      box: { left: 10, right: 310, top: 40, bottom: 72 },
+      start: 5,
+      end: 16,
+    });
+
+    const textarea = textControl({ localName: 'textarea', type: 'textarea' });
+    expect(getSelectableTextControl(textarea)).toBe(textarea);
+  });
+
+  it('leaves password fields and selection-less inputs to the browser', () => {
+    expect(getSelectableTextControl(textControl({ type: 'password' }))).toBeNull();
+    expect(getSelectableTextControl(textControl({ type: 'email' }))).toBeNull();
+    expect(
+      getSelectableTextControl({ localName: 'div' }),
+    ).toBeNull();
+    expect(getSelectableTextControl(null)).toBeNull();
+  });
+
+  it('ignores a collapsed or blank text-control selection', () => {
+    expect(
+      readTextControlSnapshot(textControl({ selectionStart: 3, selectionEnd: 3 })),
+    ).toBeNull();
+    expect(
+      readTextControlSnapshot(
+        textControl({ value: 'a    b', selectionStart: 1, selectionEnd: 5 }),
+      ),
+    ).toBeNull();
+    expect(
+      readTextControlSnapshot(
+        textControl({ selectionStart: null, selectionEnd: null }),
+      ),
+    ).toBeNull();
+  });
 });

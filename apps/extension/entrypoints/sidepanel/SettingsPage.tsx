@@ -10,8 +10,8 @@ import {
   ArrowLeft,
   ChevronRight,
   Database,
-  LayoutGrid,
   SlidersHorizontal,
+  Star,
   Tags,
 } from 'lucide-react';
 
@@ -25,7 +25,6 @@ import {
 import {
   MESSAGE_TYPE,
   sendExtensionMessage,
-  type ContextPresetListData,
   type LabelListData,
 } from '../../lib/browser/message-contract';
 import { toIntlLocale, type Translator } from '../../lib/i18n-catalog';
@@ -37,21 +36,15 @@ import { getWorkspaceExpiryDays } from '../../lib/workspace-expiry';
 import { GeneralSettings } from './GeneralSettings';
 import { StorageSettings } from './StorageSettings';
 import { TaxonomySettings } from './TaxonomySettings';
-import { WorkspaceSettings } from './WorkspaceSettings';
 
 type SettingsSectionId =
   | 'general'
-  | 'workspace'
   | 'taxonomy'
   | 'storage';
 
-interface SettingsPageProps {
-  onBack: () => void;
-}
-
 interface SettingsMenuItem {
   id: SettingsSectionId;
-  icon: typeof LayoutGrid;
+  icon: typeof SlidersHorizontal;
   titleKey: TranslationKey;
   descriptionKey: TranslationKey;
   content: ComponentType;
@@ -60,7 +53,6 @@ interface SettingsMenuItem {
 interface SettingsSnapshot {
   workspaceExpiryDays: number | null;
   labelsCount: number | null;
-  contextsCount: number | null;
 }
 
 const SETTINGS_MENU_ITEMS: readonly SettingsMenuItem[] = [
@@ -70,13 +62,6 @@ const SETTINGS_MENU_ITEMS: readonly SettingsMenuItem[] = [
     titleKey: 'settings.menu.general.title',
     descriptionKey: 'settings.menu.general.description',
     content: GeneralSettings,
-  },
-  {
-    id: 'workspace',
-    icon: LayoutGrid,
-    titleKey: 'settings.menu.workspace.title',
-    descriptionKey: 'settings.menu.workspace.description',
-    content: WorkspaceSettings,
   },
   {
     id: 'taxonomy',
@@ -94,7 +79,11 @@ const SETTINGS_MENU_ITEMS: readonly SettingsMenuItem[] = [
   },
 ] as const;
 
-export function SettingsPage({ onBack }: SettingsPageProps) {
+// Plain link only: fetching the live star count would add a network request
+// to a local-first extension.
+const REPOSITORY_URL = 'https://github.com/biquanneng/snippet-vault';
+
+export function SettingsPage() {
   const { locale, preference: languagePreference, t } = useI18n();
   const { preference: themePreference } = useThemePreference();
   const [activeSection, setActiveSection] =
@@ -102,7 +91,6 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>({
     workspaceExpiryDays: null,
     labelsCount: null,
-    contextsCount: null,
   });
   const activeItem = SETTINGS_MENU_ITEMS.find(
     (item) => item.id === activeSection,
@@ -121,10 +109,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
       sendExtensionMessage<LabelListData>({
         type: MESSAGE_TYPE.getLabels,
       }),
-      sendExtensionMessage<ContextPresetListData>({
-        type: MESSAGE_TYPE.getContextPresets,
-      }),
-    ]).then(([workspaceExpiryResult, labelsResult, contextsResult]) => {
+    ]).then(([workspaceExpiryResult, labelsResult]) => {
       if (cancelled) {
         return;
       }
@@ -138,10 +123,6 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
           labelsResult.status === 'fulfilled' && labelsResult.value.ok
           ? labelsResult.value.data.labels.length
           : null,
-        contextsCount:
-          contextsResult.status === 'fulfilled' && contextsResult.value.ok
-          ? contextsResult.value.data.contextPresets.length
-          : null,
       });
     });
 
@@ -152,20 +133,13 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 
   const menuSummaries = useMemo<Record<SettingsSectionId, string>>(
     () => ({
-      general: [
+      general: formatSummaryParts([
         getThemePreferenceLabel(themePreference, t),
         getLanguagePreferenceLabel(languagePreference, t),
-      ].join(' · '),
-      workspace: formatSummaryParts([
         snapshot.workspaceExpiryDays === null
           ? null
           : `${numberFormatter.format(snapshot.workspaceExpiryDays)} ${t(
               'settings.workspace.days',
-            )}`,
-        snapshot.contextsCount === null
-          ? null
-          : `${numberFormatter.format(snapshot.contextsCount)} ${t(
-              'settings.workspace.contextTitle',
             )}`,
       ]),
       taxonomy:
@@ -179,7 +153,6 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     [
       languagePreference,
       numberFormatter,
-      snapshot.contextsCount,
       snapshot.labelsCount,
       snapshot.workspaceExpiryDays,
       t,
@@ -187,41 +160,29 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     ],
   );
 
-  function goBack() {
-    if (activeSection) {
-      setActiveSection(null);
-      return;
-    }
-    onBack();
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="sticky top-0 z-10 flex shrink-0 items-start gap-3 bg-background px-4 pt-3 pb-2">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={goBack}
-                aria-label={
-                  activeItem
-                    ? t('settings.menu.back')
-                    : t('settings.back')
-                }
-              >
-                <ArrowLeft aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={4}>
-              {activeItem
-                ? t('settings.menu.back')
-                : t('settings.back')}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {activeItem ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setActiveSection(null)}
+                  aria-label={t('settings.menu.back')}
+                >
+                  <ArrowLeft aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={4}>
+                {t('settings.menu.back')}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
         <div className="min-w-0 space-y-0.5">
           <h2 className="text-sm font-semibold">
             {activeItem
@@ -283,6 +244,21 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
               );
             })}
           </nav>
+        )}
+        {ActiveContent ? null : (
+          <footer className="flex items-center justify-center gap-1.5 px-4 pt-2 pb-4 text-xs text-muted-foreground">
+            <span>{t('settings.menu.sourceCode')}</span>
+            <span aria-hidden="true">·</span>
+            <a
+              href={REPOSITORY_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Star className="size-3.5" aria-hidden="true" />
+              {t('settings.menu.star')}
+            </a>
+          </footer>
         )}
       </div>
     </div>

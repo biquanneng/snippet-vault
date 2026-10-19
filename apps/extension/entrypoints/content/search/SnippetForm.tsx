@@ -17,11 +17,12 @@ import {
   LoaderCircle,
   Plus,
   RotateCcw,
+  Sparkles,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '../../../components/ui/badge';
-import { ContextMarker } from '../../../components/context-marker';
 import { Button } from '../../../components/ui/button';
 import {
   Field,
@@ -33,46 +34,38 @@ import {
   FieldSet,
 } from '../../../components/ui/field';
 import { Input } from '../../../components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../../components/ui/select';
 import { Textarea } from '../../../components/ui/textarea';
 import {
   MAX_LABEL_NAME_LENGTH,
   MAX_SELECTION_LENGTH,
   MESSAGE_TYPE,
   sendExtensionMessage,
-  type ContextPresetListData,
-  type ContextPresetSummary,
   type CreateLabelData,
   type LabelListData,
   type LabelSummary,
   type SaveSelectionData,
   type SearchPanelItem,
   type SearchPanelKind,
-  type UpdateSnippetContextSelection,
   type UpdateSnippetData,
   type UpdateSnippetRequest,
 } from '../../../lib/browser/message-contract';
+import type { PageSource } from '../../../lib/browser/page-source';
 import { toIntlLocale, type SupportedLocale } from '../../../lib/i18n-catalog';
 import { getLocalizedLabelName } from '../../../lib/localized-values';
+import { detectLabelIds } from '../../../lib/secret-detection';
 import { useI18n } from '../../../lib/use-i18n';
-import { cn } from '../../../lib/utils';
 import { getMutationStatusMessages } from './mutation-status';
 
-const NO_CONTEXT_VALUE = '__snippet-vault-no-context__';
-const PRESERVE_CONTEXT_VALUE = '__snippet-vault-preserve-context__';
 const COLLAPSED_LABEL_LIMIT = 6;
+const LABEL_DETECTION_DELAY_MS = 250;
 
 interface SnippetFormProps {
   enhancedCreate?: boolean;
   kind: SearchPanelKind;
   item?: SearchPanelItem;
   portalContainer?: HTMLElement;
+  /** Read once when a create form opens; later tab switches do not replace it. */
+  getPageSource?: () => Promise<PageSource | null>;
   onCancel: () => void;
   onSaved: (continueCreating?: boolean) => void;
 }
@@ -84,6 +77,7 @@ export function SnippetForm({
   kind,
   item,
   portalContainer,
+  getPageSource,
   onCancel,
   onSaved,
 }: SnippetFormProps) {
@@ -91,12 +85,13 @@ export function SnippetForm({
   const contentId = useId();
   const labelHintId = useId();
   const labelInputId = useId();
-  const contextTriggerId = useId();
   const expiryInputId = useId();
   const expiryHintId = useId();
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
   const submissionInFlightRef = useRef(false);
+  // Once the user picks labels by hand, detection never overrides them.
+  const labelsTouchedRef = useRef(false);
   const editing = item !== undefined;
   const originalExpiryInput =
     item?.kind === 'workspace'
@@ -104,19 +99,16 @@ export function SnippetForm({
       : '';
   const [content, setContent] = useState(item?.content ?? '');
   const [labels, setLabels] = useState<LabelSummary[]>([]);
-  const [contexts, setContexts] = useState<ContextPresetSummary[]>([]);
   const [archivedCurrentLabelIds, setArchivedCurrentLabelIds] =
     useState<Set<string>>(new Set());
   const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>(
     item?.labels.map((label) => label.id) ?? [],
   );
-  const [contextSelection, setContextSelection] = useState(
-    item?.context ? PRESERVE_CONTEXT_VALUE : NO_CONTEXT_VALUE,
-  );
+  const [autoLabelIds, setAutoLabelIds] = useState<string[]>([]);
+  const [source, setSource] = useState<PageSource | null>(null);
   const [expiryInput, setExpiryInput] = useState(originalExpiryInput);
   const [labelsLoading, setLabelsLoading] = useState(true);
   const [labelsError, setLabelsError] = useState<string | null>(null);
-  const [contextsError, setContextsError] = useState<string | null>(null);
   const [labelsRevision, setLabelsRevision] = useState(0);
   const [labelInput, setLabelInput] = useState('');
   const [creatingLabel, setCreatingLabel] = useState(false);
@@ -128,16 +120,10 @@ export function SnippetForm({
     let cancelled = false;
     setLabelsLoading(true);
     setLabelsError(null);
-    setContextsError(null);
 
-    void Promise.all([
-      sendExtensionMessage<LabelListData>({
-        type: MESSAGE_TYPE.getLabels,
-      }),
-      sendExtensionMessage<ContextPresetListData>({
-        type: MESSAGE_TYPE.getContextPresets,
-      }),
-    ]).then(([labelResponse, contextResponse]) => {
+    void sendExtensionMessage<LabelListData>({
+      type: MESSAGE_TYPE.getLabels,
+    }).then((labelResponse) => {
       if (cancelled) {
         return;
       }
@@ -169,32 +155,6 @@ export function SnippetForm({
           current.filter((labelId) => availableLabelIds.has(labelId)),
         );
       }
-
-      if (!contextResponse.ok) {
-        setContexts([]);
-        setContextsError(contextResponse.error.message);
-        if (!item?.context) {
-          setContextSelection(NO_CONTEXT_VALUE);
-        }
-        return;
-      }
-
-      setContexts(contextResponse.data.contextPresets);
-      setContextSelection((current) => {
-        if (
-          current === NO_CONTEXT_VALUE ||
-          current === PRESERVE_CONTEXT_VALUE
-        ) {
-          return current;
-        }
-        return contextResponse.data.contextPresets.some(
-          (context) => context.id === current,
-        )
-          ? current
-          : item?.context
-            ? PRESERVE_CONTEXT_VALUE
-            : NO_CONTEXT_VALUE;
-      });
     });
 
     return () => {
@@ -202,8 +162,6 @@ export function SnippetForm({
     };
   }, [item, labelsRevision, locale]);
 
-  const localizedCurrentContext = item?.context?.name;
-  const currentContextColor = item?.context?.color;
   const expiryChanged =
     item?.kind === 'workspace' && expiryInput !== originalExpiryInput;
   const parsedExpiry = expiryChanged
@@ -233,7 +191,43 @@ export function SnippetForm({
     labels.length - collapsedLabels.length,
   );
 
+  useEffect(() => {
+    if (editing || !getPageSource) {
+      return;
+    }
+    let cancelled = false;
+    void getPageSource().then((pageSource) => {
+      if (!cancelled) {
+        setSource(pageSource);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [editing, getPageSource]);
+
+  useEffect(() => {
+    if (editing || labelsTouchedRef.current || labelsLoading) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (labelsTouchedRef.current) {
+        return;
+      }
+      const availableLabelIds = new Set(labels.map((label) => label.id));
+      const detected = detectLabelIds(content).filter((labelId) =>
+        availableLabelIds.has(labelId),
+      );
+      setAutoLabelIds(detected);
+      setSelectedLabelIds(detected);
+    }, LABEL_DETECTION_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [content, editing, labels, labelsLoading]);
+
   function toggleLabel(labelId: string) {
+    labelsTouchedRef.current = true;
+    setAutoLabelIds([]);
     setSelectedLabelIds((current) => {
       if (current.includes(labelId)) {
         return current.filter((selectedId) => selectedId !== labelId);
@@ -303,9 +297,7 @@ export function SnippetForm({
         kind,
         content,
         labelIds: selectedLabelIds,
-        ...(contextSelection !== NO_CONTEXT_VALUE
-          ? { contextId: contextSelection }
-          : {}),
+        ...(source ? { source } : {}),
       },
     });
 
@@ -316,12 +308,13 @@ export function SnippetForm({
       return false;
     }
 
+    // Success stays silent; only a degraded save is worth interrupting for.
     const statusMessages = getMutationStatusMessages(response.data, t);
-    toast.success(t('search.create.saved'), {
-      ...(statusMessages.length > 0
-        ? { description: statusMessages.join(' · ') }
-        : {}),
-    });
+    if (statusMessages.length > 0) {
+      toast.warning(t('search.create.saved'), {
+        description: statusMessages.join(' · '),
+      });
+    }
     return true;
   }
 
@@ -329,7 +322,6 @@ export function SnippetForm({
     currentItem: SearchPanelItem,
     expiresAt: number | undefined,
   ): Promise<boolean> {
-    const context = toUpdateContextSelection(contextSelection);
     const request: UpdateSnippetRequest =
       currentItem.kind === 'workspace'
         ? {
@@ -340,7 +332,6 @@ export function SnippetForm({
               expectedUpdatedAt: currentItem.updatedAt,
               content,
               labelIds: selectedLabelIds,
-              context,
               ...(expiresAt !== undefined ? { expiresAt } : {}),
             },
           }
@@ -352,7 +343,6 @@ export function SnippetForm({
               expectedUpdatedAt: currentItem.updatedAt,
               content,
               labelIds: selectedLabelIds,
-              context,
             },
           };
 
@@ -374,12 +364,13 @@ export function SnippetForm({
       return false;
     }
 
+    // Success stays silent; only a degraded save is worth interrupting for.
     const statusMessages = getMutationStatusMessages(response.data, t);
-    toast.success(t('search.edit.saved'), {
-      ...(statusMessages.length > 0
-        ? { description: statusMessages.join(' · ') }
-        : {}),
-    });
+    if (statusMessages.length > 0) {
+      toast.warning(t('search.edit.saved'), {
+        description: statusMessages.join(' · '),
+      });
+    }
     return true;
   }
 
@@ -398,9 +389,6 @@ export function SnippetForm({
     if (existing) {
       promoteLabel(existing);
       setLabelInput('');
-      toast.success(t('search.create.labelSelected', [
-        getLocalizedLabelName(existing.id, existing.name, locale),
-      ]));
       requestAnimationFrame(() => labelInputRef.current?.focus());
       return;
     }
@@ -421,20 +409,6 @@ export function SnippetForm({
 
     promoteLabel(response.data.label);
     setLabelInput('');
-    toast.success(
-      t(
-        response.data.created
-          ? 'search.create.labelCreatedSelected'
-          : 'search.create.labelSelected',
-        [
-          getLocalizedLabelName(
-            response.data.label.id,
-            response.data.label.name,
-            locale,
-          ),
-        ],
-      ),
-    );
     requestAnimationFrame(() => labelInputRef.current?.focus());
   }
 
@@ -449,6 +423,8 @@ export function SnippetForm({
   }
 
   function promoteLabel(label: LabelSummary) {
+    labelsTouchedRef.current = true;
+    setAutoLabelIds([]);
     setLabels((current) => [
       label,
       ...current.filter((candidate) => candidate.id !== label.id),
@@ -463,12 +439,9 @@ export function SnippetForm({
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       onSubmit={(event) => void handleSubmit(event)}
     >
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-5">
         <FieldGroup
-          className={cn(
-            'w-full',
-            !enhancedCreate && 'mx-auto max-w-2xl',
-          )}
+          className="mx-auto w-full max-w-2xl"
         >
           <div className="pb-1">
             <div className="min-w-0">
@@ -498,6 +471,27 @@ export function SnippetForm({
                     ])}
                   </span>
                 </p>
+              ) : null}
+              {!editing && source ? (
+                <div className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                  <Globe2 className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 truncate" title={source.url}>
+                    {t('search.create.sourceFromPage', [
+                      formatPageSource(source),
+                    ])}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    disabled={saving}
+                    aria-label={t('search.create.removeSource')}
+                    title={t('search.create.removeSource')}
+                    onClick={() => setSource(null)}
+                  >
+                    <X aria-hidden="true" />
+                  </Button>
+                </div>
               ) : null}
             </div>
           </div>
@@ -536,6 +530,12 @@ export function SnippetForm({
                     : 'search.create.labelsHint',
               )}
             </FieldDescription>
+            {autoLabelIds.length > 0 ? (
+              <FieldDescription className="flex items-center gap-1.5">
+                <Sparkles className="size-3.5 shrink-0" aria-hidden="true" />
+                {t('search.create.labelsAutoDetected')}
+              </FieldDescription>
+            ) : null}
             {enhancedCreate &&
             !editing &&
             !labelsLoading &&
@@ -682,80 +682,6 @@ export function SnippetForm({
             </div>
           </FieldSet>
 
-          <Field data-invalid={contextsError ? true : undefined}>
-            <FieldLabel htmlFor={contextTriggerId}>
-              {t('search.create.environmentLabel')}
-            </FieldLabel>
-            <Select
-              value={contextSelection}
-              onValueChange={setContextSelection}
-              disabled={busy}
-            >
-              <SelectTrigger
-                id={contextTriggerId}
-                className="w-full"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent
-                portalContainer={portalContainer}
-                position="popper"
-                align="start"
-                data-snippet-vault-ui="true"
-              >
-                {localizedCurrentContext ? (
-                  <SelectItem value={PRESERVE_CONTEXT_VALUE}>
-                    <span className="flex min-w-0 items-center gap-2">
-                      {currentContextColor ? (
-                        <ContextMarker color={currentContextColor} />
-                      ) : null}
-                      <span className="truncate">
-                        {t('search.edit.keepCurrentContext', [
-                          localizedCurrentContext,
-                        ])}
-                      </span>
-                    </span>
-                  </SelectItem>
-                ) : null}
-                <SelectItem value={NO_CONTEXT_VALUE}>
-                  <span className="flex min-w-0 items-center gap-2">
-                    <ContextMarker color="slate" />
-                    <span className="truncate">
-                      {t('search.create.environmentNone')}
-                    </span>
-                  </span>
-                </SelectItem>
-                {contexts.map((context) => (
-                  <SelectItem key={context.id} value={context.id}>
-                    <span className="flex min-w-0 items-center gap-2">
-                      <ContextMarker color={context.color} />
-                      <span className="truncate">{context.name}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {contextsError ? (
-              <div className="flex items-center justify-between gap-3">
-                <FieldError className="min-w-0 break-words">
-                  {t('search.create.contextLoadFailed')}
-                </FieldError>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="xs"
-                  disabled={busy}
-                  onClick={() =>
-                    setLabelsRevision((current) => current + 1)
-                  }
-                >
-                  <RotateCcw aria-hidden="true" />
-                  {t('search.create.retry')}
-                </Button>
-              </div>
-            ) : null}
-          </Field>
-
           {item?.kind === 'workspace' ? (
             <Field data-invalid={expiryInvalid || undefined}>
               <FieldLabel htmlFor={expiryInputId}>
@@ -787,7 +713,7 @@ export function SnippetForm({
         </FieldGroup>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 bg-muted/30 px-4 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t px-3 py-3">
         <Button
           type="button"
           variant="ghost"
@@ -833,16 +759,9 @@ export function SnippetForm({
   );
 }
 
-function toUpdateContextSelection(
-  value: string,
-): UpdateSnippetContextSelection {
-  if (value === PRESERVE_CONTEXT_VALUE) {
-    return { mode: 'preserve' };
-  }
-  if (value === NO_CONTEXT_VALUE) {
-    return { mode: 'clear' };
-  }
-  return { mode: 'set', contextId: value };
+function formatPageSource(source: PageSource): string {
+  const domain = new URL(source.url).hostname;
+  return source.title ? `${source.title} · ${domain}` : domain;
 }
 
 function getVisibleLabels(

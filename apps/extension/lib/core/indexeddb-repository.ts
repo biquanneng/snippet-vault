@@ -3,7 +3,6 @@
 import {
   type ConditionalMutationOutcome,
   type ConditionalMutationResult,
-  type ContextPreset,
   SEARCH_SCHEMA_VERSION,
   STORAGE_SCHEMA_VERSION,
   type ItemReference,
@@ -18,12 +17,12 @@ import {
   type WorkspaceItem,
 } from './model';
 import type { VaultRepository } from './repository';
+import { migrateLegacyContexts, type LegacyContextPreset, type LegacyStoredRecord } from './context-migration';
 
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const META_KEY = 'storage';
 
 const STORE = {
-  contextPresets: 'context_presets',
   labels: 'labels',
   meta: 'meta',
   vaultItems: 'vault_items',
@@ -239,13 +238,6 @@ export class IndexedDbVaultRepository implements VaultRepository {
     });
   }
 
-  putContextPreset(preset: ContextPreset): Promise<MutationResult> {
-    return this.mutate([STORE.contextPresets], async (tx) => {
-      tx.objectStore(STORE.contextPresets).put(preset);
-      return { changed: true, value: undefined };
-    });
-  }
-
   touchLabelUsage(id: string, time: number): Promise<MutationResult> {
     return this.mutate([STORE.labels], async (tx) => {
       const store = tx.objectStore(STORE.labels);
@@ -353,7 +345,6 @@ export class IndexedDbVaultRepository implements VaultRepository {
       database,
       [
         STORE.labels,
-        STORE.contextPresets,
         STORE.vaultItems,
         STORE.workspaceItems,
       ],
@@ -368,7 +359,6 @@ export class IndexedDbVaultRepository implements VaultRepository {
       database,
       [
         STORE.labels,
-        STORE.contextPresets,
         STORE.vaultItems,
         STORE.workspaceItems,
         STORE.meta,
@@ -398,26 +388,20 @@ export class IndexedDbVaultRepository implements VaultRepository {
     return this.mutate(
       [
         STORE.labels,
-        STORE.contextPresets,
         STORE.vaultItems,
         STORE.workspaceItems,
       ],
       async (tx) => {
         const labels = tx.objectStore(STORE.labels);
-        const contextPresets = tx.objectStore(STORE.contextPresets);
         const vaultItems = tx.objectStore(STORE.vaultItems);
         const workspaceItems = tx.objectStore(STORE.workspaceItems);
 
         labels.clear();
-        contextPresets.clear();
         vaultItems.clear();
         workspaceItems.clear();
 
         for (const label of snapshot.labels) {
           labels.put(label);
-        }
-        for (const preset of snapshot.contextPresets) {
-          contextPresets.put(preset);
         }
         for (const record of snapshot.records) {
           (record.kind === 'vault' ? vaultItems : workspaceItems).put(
@@ -534,22 +518,6 @@ export class IndexedDbVaultRepository implements VaultRepository {
     );
   }
 
-  async listContextPresets(
-    options: { includeArchived?: boolean } = {},
-  ): Promise<ContextPreset[]> {
-    const database = await this.getDatabase();
-    return runTransaction(
-      database,
-      [STORE.contextPresets],
-      'readonly',
-      async (tx) =>
-        this.listStoreRecords<ContextPreset>(
-          tx.objectStore(STORE.contextPresets),
-          options.includeArchived ?? false,
-        ),
-    );
-  }
-
   async close(): Promise<void> {
     if (!this.databasePromise) {
       return;
@@ -592,15 +560,64 @@ export class IndexedDbVaultRepository implements VaultRepository {
       if (!database.objectStoreNames.contains(STORE.labels)) {
         database.createObjectStore(STORE.labels, { keyPath: 'id' });
       }
-      if (!database.objectStoreNames.contains(STORE.contextPresets)) {
-        database.createObjectStore(STORE.contextPresets, { keyPath: 'id' });
-      }
       if (!database.objectStoreNames.contains(STORE.meta)) {
         const metaStore = database.createObjectStore(STORE.meta, {
           keyPath: 'key',
         });
         metaStore.put(toMetaRecord(DEFAULT_META));
       }
+
+      const tx = request.transaction!;
+      // All reads are queued synchronously. Conversion, writes, metadata and
+      // store deletion share the versionchange transaction: any failure aborts
+      // the upgrade, leaving both the old data and database version intact.
+      const metaRequest = tx.objectStore(STORE.meta).get(META_KEY);
+      metaRequest.onsuccess = () => {
+        const meta = metaRequest.result as MetaRecord | undefined;
+        if (meta?.schemaVersion !== 3) {
+          if (database.objectStoreNames.contains('context_presets')) {
+            database.deleteObjectStore('context_presets');
+          }
+          return;
+        }
+        const labelsRequest = tx.objectStore(STORE.labels).getAll();
+        const vaultRequest = tx.objectStore(STORE.vaultItems).getAll();
+        const workspaceRequest = tx.objectStore(STORE.workspaceItems).getAll();
+        const presetsRequest = database.objectStoreNames.contains('context_presets')
+          ? tx.objectStore('context_presets').getAll()
+          : undefined;
+        const requests = [labelsRequest, vaultRequest, workspaceRequest, ...(presetsRequest ? [presetsRequest] : [])];
+        let pending = requests.length;
+        for (const read of requests) {
+          read.onsuccess = () => {
+            if (--pending !== 0) return;
+            try {
+              const migrated = migrateLegacyContexts({
+                labels: labelsRequest.result as Label[],
+                contextPresets: (presetsRequest?.result ?? []) as LegacyContextPreset[],
+                records: [
+                  ...vaultRequest.result.map((item): LegacyStoredRecord => ({ kind: 'vault', item })),
+                  ...workspaceRequest.result.map((item): LegacyStoredRecord => ({ kind: 'workspace', item })),
+                ],
+              });
+              for (const label of migrated.labels) tx.objectStore(STORE.labels).put(label);
+              for (const record of migrated.records) {
+                tx.objectStore(record.kind === 'vault' ? STORE.vaultItems : STORE.workspaceItems).put(record.item);
+              }
+              tx.objectStore(STORE.meta).put({
+                ...meta,
+                schemaVersion: STORAGE_SCHEMA_VERSION,
+                dataRevision: meta.dataRevision + 1,
+                indexedRevision: -1,
+                searchSchemaVersion: 0,
+              });
+              if (database.objectStoreNames.contains('context_presets')) database.deleteObjectStore('context_presets');
+            } catch {
+              tx.abort();
+            }
+          };
+        }
+      };
     };
 
     const database = await requestToPromise(request);
@@ -629,6 +646,9 @@ export class IndexedDbVaultRepository implements VaultRepository {
         }
 
         const current = fromMetaRecord(existing);
+        if (current.schemaVersion === 3) {
+          throw new Error('Legacy storage requires an IndexedDB version upgrade');
+        }
         if (current.schemaVersion !== STORAGE_SCHEMA_VERSION) {
           tx.objectStore(STORE.vaultItems).clear();
           tx.objectStore(STORE.workspaceItems).clear();
@@ -736,15 +756,10 @@ export class IndexedDbVaultRepository implements VaultRepository {
     tx: IDBTransaction,
     now: number,
   ): Promise<VaultSnapshot> {
-    const [labels, contextPresets, vaultItems, workspaceItems] =
+    const [labels, vaultItems, workspaceItems] =
       await Promise.all([
         requestToPromise(
           tx.objectStore(STORE.labels).getAll() as IDBRequest<Label[]>,
-        ),
-        requestToPromise(
-          tx
-            .objectStore(STORE.contextPresets)
-            .getAll() as IDBRequest<ContextPreset[]>,
         ),
         requestToPromise(
           tx.objectStore(STORE.vaultItems).getAll() as IDBRequest<VaultItem[]>,
@@ -758,7 +773,6 @@ export class IndexedDbVaultRepository implements VaultRepository {
 
     return {
       labels,
-      contextPresets,
       records: [
         ...vaultItems.map((item): StoredRecord => ({ kind: 'vault', item })),
         ...workspaceItems

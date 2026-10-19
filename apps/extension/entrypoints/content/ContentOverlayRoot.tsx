@@ -3,13 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import sonnerStyles from "sonner/dist/styles.css?inline";
 
+import { DevAgentation } from "../../components/dev/DevAgentation";
 import { Toaster } from "../../components/ui/sonner";
 import { trackAnalyticsEvent } from "../../lib/analytics";
+import {
+  isMessageOfType,
+  OPEN_IN_PAGE_PANEL_MESSAGE,
+} from "../../lib/browser/in-page-panel";
 import { openInPageSearch } from "../../lib/analytics-events";
 import { toLanguageTag } from "../../lib/i18n-catalog";
 import { applyThemeToElement } from "../../lib/theme";
 import { useI18n } from "../../lib/use-i18n";
 import { useThemePreference } from "../../lib/use-theme";
+import { raiseContentLayer } from "./content-top-layer";
 import {
   createSelectionTooltipSuppressionRule,
   isSelectionTooltipSuppressed,
@@ -23,19 +29,22 @@ import {
   suppressSelectionTooltipForUrl,
   watchSelectionTooltipSuppressionPreferences,
 } from "../../lib/selection-tooltip-suppression-storage";
-import { SelectionTooltip } from "./SelectionTooltip";
+import { QuickSave } from "./QuickSave";
 import { SearchPanel } from "./search/SearchPanel";
 import { useDoubleShiftShortcut } from "./search/use-double-shift-shortcut";
 
 interface ContentOverlayRootProps {
   portalContainer: HTMLElement;
   initialSuppressionPreferences: SelectionTooltipSuppressionPreferences | null;
+  /** Opens the panel right away when injected by a toolbar-icon click. */
+  initialSearchOpen?: boolean;
   subscribeToLocationChanges: (listener: () => void) => () => void;
 }
 
 export function ContentOverlayRoot({
   portalContainer,
   initialSuppressionPreferences,
+  initialSearchOpen = false,
   subscribeToLocationChanges,
 }: ContentOverlayRootProps) {
   const { locale } = useI18n();
@@ -52,10 +61,34 @@ export function ContentOverlayRoot({
 
   const openSearch = useCallback(() => {
     trackAnalyticsEvent(openInPageSearch());
+    raiseContentLayer(portalContainer);
     setSearchOpen(true);
-  }, []);
+  }, [portalContainer]);
 
   useDoubleShiftShortcut(openSearch, !searchOpen);
+
+  useEffect(() => {
+    if (initialSearchOpen) {
+      openSearch();
+    }
+    // Only the mount-time request matters.
+  }, []);
+
+  useEffect(() => {
+    const handleMessage = (
+      message: unknown,
+      sender: Browser.runtime.MessageSender,
+    ) => {
+      if (
+        sender.id === browser.runtime.id &&
+        isMessageOfType(message, OPEN_IN_PAGE_PANEL_MESSAGE)
+      ) {
+        openSearch();
+      }
+    };
+    browser.runtime.onMessage.addListener(handleMessage);
+    return () => browser.runtime.onMessage.removeListener(handleMessage);
+  }, [openSearch]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,9 +173,9 @@ export function ContentOverlayRoot({
         className="pointer-events-auto"
       />
       {searchOpen || tooltipSuppressed ? null : (
-        <SelectionTooltip
-          portalContainer={portalContainer}
+        <QuickSave
           canSuppressSite={canSuppressSite}
+          onBeforeFeedback={() => raiseContentLayer(portalContainer)}
           onSuppress={suppressTooltip}
           onRestoreSuppression={restoreTooltip}
         />
@@ -153,6 +186,11 @@ export function ContentOverlayRoot({
           onClose={() => setSearchOpen(false)}
         />
       ) : null}
+      {/* Rendered inside the top layer so it can annotate the overlay. */}
+      <DevAgentation
+        portalContainer={portalContainer}
+        className="pointer-events-auto"
+      />
     </div>
   );
 }

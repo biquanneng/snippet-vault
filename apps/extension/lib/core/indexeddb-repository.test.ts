@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 
+import type { LegacyContextPreset } from './context-migration';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { IndexedDbVaultRepository } from './indexeddb-repository';
 import type {
-  ContextPreset,
   Label,
   VaultSnapshot,
   VaultItem,
@@ -22,10 +23,9 @@ const label: Label = {
   updatedAt: 100,
 };
 
-const contextPreset: ContextPreset = {
+const contextPreset: LegacyContextPreset = {
   id: 'context:meowdex-production',
   name: 'Meowdex',
-  color: 'purple',
   environment: 'production',
   createdAt: 100,
   updatedAt: 100,
@@ -35,7 +35,6 @@ const vaultItem: VaultItem = {
   id: 'vault-1',
   content: 'production-token',
   labelIds: [label.id],
-  contextId: contextPreset.id,
   source: {
     title: 'Cloud console',
     url: 'https://console.example.com/projects/meowdex?tab=credentials',
@@ -50,7 +49,6 @@ const workspaceItem: WorkspaceItem = {
   id: 'workspace-1',
   content: 'temporary-value',
   labelIds: [],
-  contextId: contextPreset.id,
   createdAt: 100,
   updatedAt: 100,
   expiresAt: 1_000,
@@ -87,35 +85,12 @@ describe('IndexedDbVaultRepository', () => {
     });
   });
 
-  it('stores context presets separately from business records and filters archived entries from active lists', async () => {
-    const archivedLabel: Label = {
-      ...label,
-      id: 'archived-label',
-      archivedAt: 200,
-    };
-    const archivedContextPreset: ContextPreset = {
-      ...contextPreset,
-      id: 'context:archived',
-      archivedAt: 200,
-    };
-
+  it('filters archived labels from active lists while preserving history', async () => {
+    const archivedLabel = { ...label, id: 'archived', archivedAt: 200 };
     await repository.putLabel(label);
     await repository.putLabel(archivedLabel);
-    await repository.putContextPreset(contextPreset);
-    await repository.putContextPreset(archivedContextPreset);
-
     await expect(repository.listLabels()).resolves.toEqual([label]);
-    await expect(
-      repository.listLabels({ includeArchived: true }),
-    ).resolves.toEqual(expect.arrayContaining([label, archivedLabel]));
-    await expect(repository.listContextPresets()).resolves.toEqual([
-      contextPreset,
-    ]);
-    await expect(
-      repository.listContextPresets({ includeArchived: true }),
-    ).resolves.toEqual(
-      expect.arrayContaining([contextPreset, archivedContextPreset]),
-    );
+    await expect(repository.listLabels({ includeArchived: true })).resolves.toEqual(expect.arrayContaining([label, archivedLabel]));
   });
 
   it('touches label usage without overwriting the stored name', async () => {
@@ -166,11 +141,6 @@ describe('IndexedDbVaultRepository', () => {
       id: 'archived-label',
       archivedAt: 200,
     };
-    const archivedContextPreset: ContextPreset = {
-      ...contextPreset,
-      id: 'context:archived',
-      archivedAt: 200,
-    };
     const activeWorkspace: WorkspaceItem = {
       ...workspaceItem,
       id: 'workspace-active',
@@ -184,8 +154,6 @@ describe('IndexedDbVaultRepository', () => {
 
     await repository.putLabel(label);
     await repository.putLabel(archivedLabel);
-    await repository.putContextPreset(contextPreset);
-    await repository.putContextPreset(archivedContextPreset);
     await repository.putVaultItem(vaultItem);
     await repository.putWorkspaceItem(activeWorkspace);
     await repository.putWorkspaceItem(expiredWorkspace);
@@ -193,30 +161,22 @@ describe('IndexedDbVaultRepository', () => {
     const snapshot = await repository.readSnapshot(1_000);
 
     expect(snapshot.labels).toEqual(expect.arrayContaining([label, archivedLabel]));
-    expect(snapshot.contextPresets).toEqual(
-      expect.arrayContaining([contextPreset, archivedContextPreset]),
-    );
     expect(snapshot.records).toEqual([
       { kind: 'vault', item: vaultItem },
       { kind: 'workspace', item: activeWorkspace },
     ]);
     expect(snapshot).toMatchObject({
       labels: expect.arrayContaining([archivedLabel]),
-      contextPresets: expect.arrayContaining([archivedContextPreset]),
     });
   });
 
   it('replaces every business store in one revision', async () => {
     await repository.putLabel(label);
-    await repository.putContextPreset(contextPreset);
     await repository.putVaultItem(vaultItem);
     await repository.putWorkspaceItem(workspaceItem);
     const before = await repository.getMeta();
     const replacement: VaultSnapshot = {
       labels: [{ ...label, id: 'replacement-label', name: 'Password' }],
-      contextPresets: [
-        { ...contextPreset, id: 'context:replacement', name: 'Replacement' },
-      ],
       records: [
         {
           kind: 'vault',
@@ -237,7 +197,6 @@ describe('IndexedDbVaultRepository', () => {
 
   it('aborts a failed snapshot replacement without changing committed data', async () => {
     await repository.putLabel(label);
-    await repository.putContextPreset(contextPreset);
     await repository.putVaultItem(vaultItem);
     const beforeSnapshot = await repository.readSnapshot(1_000);
     const beforeMeta = await repository.getMeta();
@@ -468,7 +427,7 @@ describe('IndexedDbVaultRepository', () => {
     repository = new IndexedDbVaultRepository({ databaseName });
 
     await expect(repository.getMeta()).resolves.toEqual({
-      schemaVersion: 3,
+      schemaVersion: 4,
       dataRevision: 0,
       indexedRevision: 0,
       searchSchemaVersion: 0,
@@ -482,9 +441,6 @@ describe('IndexedDbVaultRepository', () => {
     await expect(
       repository.listLabels({ includeArchived: true }),
     ).resolves.toEqual([label]);
-    await expect(
-      repository.listContextPresets({ includeArchived: true }),
-    ).resolves.toEqual([contextPreset]);
   });
 });
 

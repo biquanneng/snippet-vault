@@ -21,7 +21,6 @@ import {
   normalizeWorkspaceExpiryDays,
   setWorkspaceExpiryDays,
 } from '../../lib/workspace-expiry';
-import { ContextSettings } from './ContextSettings';
 import { SettingsBlock } from './SettingsBlock';
 
 export function WorkspaceSettings() {
@@ -88,74 +87,71 @@ export function WorkspaceSettings() {
   }
 
   return (
-    <div className="px-4 pb-8">
-      <ContextSettings />
-      <SettingsBlock
-        icon={TimerReset}
-        title={t('settings.workspace.defaultTitle')}
-        description={t('settings.workspace.defaultDescription')}
-      >
-        <form onSubmit={(event) => void save(event)}>
-          <FieldGroup className="gap-3">
-            <Field data-invalid={invalid || undefined}>
-              <FieldLabel htmlFor={inputId} className="sr-only">
-                {t('settings.workspace.defaultTitle')}
-              </FieldLabel>
-              <div className="relative max-w-48">
-                <Input
-                  id={inputId}
-                  type="number"
-                  min={MIN_WORKSPACE_EXPIRY_DAYS}
-                  step={1}
-                  inputMode="numeric"
-                  value={inputValue}
-                  disabled={loading || saving}
-                  aria-invalid={invalid}
-                  aria-describedby={`${inputId}-hint`}
-                  onChange={(event) => {
-                    setInputValue(event.target.value);
-                    setInvalid(false);
-                  }}
-                  className="pr-12"
-                />
-                <span
-                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground"
-                  aria-hidden="true"
-                >
-                  {t('settings.workspace.days')}
-                </span>
-              </div>
-              {invalid ? (
-                <FieldError id={`${inputId}-hint`}>
-                  {t('settings.workspace.invalid')}
-                </FieldError>
-              ) : (
-                <FieldDescription id={`${inputId}-hint`}>
-                  {t('settings.workspace.newItemsOnly')}
-                </FieldDescription>
-              )}
-            </Field>
-            <Button
-              type="submit"
-              size="sm"
-              className="self-start"
-              disabled={loading || saving || !isDirty}
-            >
-              {saving ? (
-                <LoaderCircle
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <Check aria-hidden="true" />
-              )}
-              {saving
-                ? t('settings.workspace.saving')
-                : t('settings.workspace.save')}
-            </Button>
-          </FieldGroup>
-        </form>
-      </SettingsBlock>
-    </div>
+    <SettingsBlock
+      icon={TimerReset}
+      title={t('settings.workspace.defaultTitle')}
+      description={t('settings.workspace.defaultDescription')}
+    >
+      <form onSubmit={(event) => void save(event)}>
+        <FieldGroup className="gap-3">
+          <Field data-invalid={invalid || undefined}>
+            <FieldLabel htmlFor={inputId} className="sr-only">
+              {t('settings.workspace.defaultTitle')}
+            </FieldLabel>
+            <div className="relative max-w-48">
+              <Input
+                id={inputId}
+                type="number"
+                min={MIN_WORKSPACE_EXPIRY_DAYS}
+                step={1}
+                inputMode="numeric"
+                value={inputValue}
+                disabled={loading || saving}
+                aria-invalid={invalid}
+                aria-describedby={`${inputId}-hint`}
+                onChange={(event) => {
+                  setInputValue(event.target.value);
+                  setInvalid(false);
+                }}
+                className="pr-12"
+              />
+              <span
+                className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground"
+                aria-hidden="true"
+              >
+                {t('settings.workspace.days')}
+              </span>
+            </div>
+            {invalid ? (
+              <FieldError id={`${inputId}-hint`}>
+                {t('settings.workspace.invalid')}
+              </FieldError>
+            ) : (
+              <FieldDescription id={`${inputId}-hint`}>
+                {t('settings.workspace.newItemsOnly')}
+              </FieldDescription>
+            )}
+          </Field>
+          <Button
+            type="submit"
+            size="sm"
+            className="self-start"
+            disabled={loading || saving || !isDirty}
+          >
+            {saving ? (
+              <LoaderCircle
+                className="animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <Check aria-hidden="true" />
+            )}
+            {saving
+              ? t('settings.workspace.saving')
+              : t('settings.workspace.save')}
+          </Button>
+        </FieldGroup>
+      </form>
+    </SettingsBlock>
   );
 }

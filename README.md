@@ -1,16 +1,23 @@
 # SnippetVault
 
+[![GitHub stars](https://img.shields.io/github/stars/biquanneng/snippet-vault?style=flat)](https://github.com/biquanneng/snippet-vault/stargazers)
+[![CI](https://github.com/biquanneng/snippet-vault/actions/workflows/ci.yml/badge.svg)](https://github.com/biquanneng/snippet-vault/actions/workflows/ci.yml)
+[![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
+
+If SnippetVault saves you time, a ⭐ on GitHub helps other developers find it.
+
 SnippetVault is a local-first browser extension for developers who need to
 organize important but scattered text: access keys, secret keys, tokens,
 endpoints, commands, notes, and short-lived working data.
 
 Its core workflow is deliberately small:
 
-1. Select page content, convert it to Markdown, optionally label it, and save it.
+1. Select page content and press `Command/Ctrl+C` twice to save it as Markdown
+   instantly, with labels detected from the content format.
 2. Create a text or Markdown snippet directly from the search panel.
 3. Double-press `Shift` to search and copy saved information.
-4. Click the toolbar icon to keep search and the temporary workspace open in
-   Chrome's side panel.
+4. Click the toolbar icon to open the same search on the current page;
+   settings open in Chrome's side panel.
 
 SnippetVault is being developed as an open-source product by
 [biqn.dev](https://biqn.dev). The hosted extension will be built from the same
@@ -75,14 +82,30 @@ pnpm test:browser -- --load-extension
 Use a named profile when a test needs persistent browser state:
 
 ```bash
-pnpm test:browser -- --name tooltip --url https://example.com --load-extension
+pnpm test:browser -- --name quick-save --url https://example.com --load-extension
 ```
 
 SnippetVault runs automatically on supported Chrome web pages. Select content
-on an HTTP or HTTPS page, optionally choose labels and a context, then save it.
+on an HTTP or HTTPS page and press `Command+C` twice on macOS, or `Ctrl+C`
+twice on Windows and Linux, within 400ms. The first copy stays a normal browser
+copy; the second saves the selection silently, with no form to fill in. A short
+confirmation offers **Undo**, **Move to vault** for temporary records, and
+**More** to turn quick save off on the current page or site. Quick save writes
+to the temporary workspace by default; choose the Vault instead under
+**Settings → General → Quick save**. Saving identical content to the same place
+again reuses the existing record instead of creating a copy.
+
 The explicitly selected HTML fragment is converted to Markdown; raw HTML and
-remote images are not stored. Chrome built-in pages, the Chrome Web Store, and
-other protected surfaces do not allow extension content scripts.
+remote images are not stored. Labels are detected locally from the content
+format: AWS and Alibaba Cloud access key IDs, GitHub tokens, JWTs, `sk-` API
+keys, PEM and SSH keys, and database connection strings that include
+credentials. Unprefixed random strings, such as an AWS secret key, are not
+detected. Chrome built-in pages, the Chrome Web Store, and other protected
+surfaces do not allow extension content scripts.
+
+In-page SnippetVault UI is shown in the browser's top layer, so ordinary page
+overlays cannot cover it. While a page has its own modal dialog open, the
+browser may show SnippetVault UI without letting you interact with it.
 
 Press `Shift` twice within 400ms to open the search modal. The **Vault** tab
 groups records by source domain; **Temporary** keeps active temporary records
@@ -90,45 +113,60 @@ in a flat list. Press `Enter` to submit a query; typing alone does not search.
 Saved Markdown is rendered as a readable, safe React view, and matched terms
 are highlighted after authoritative records are loaded. Empty searches can be
 paged independently in either tab. Use **New** to save manually entered text or
-Markdown with optional labels and a context. Labels are optional for both Vault
-and temporary workspace records. The active tab decides whether the record is
-permanent or expires from the temporary workspace; manual records do not claim
-a webpage source. Use the refresh button next to **New** to reload the current
-result set without changing the active tab or query.
+Markdown with optional labels. Labels are preselected from the content format
+until you choose labels yourself, and they are optional for both Vault and
+temporary workspace records. The active tab decides whether the record is
+permanent or expires from the temporary workspace. A new record captures the
+title and URL of the web page you are on as its source; you can remove it
+before saving, and restricted pages provide no source. Use the refresh button
+next to **New** to reload the current result set without changing the active
+tab or query.
 
 Existing records can be edited from the same result list. Editing updates
-content, labels, and context while preserving the record type, captured source,
-and creation time; temporary records can also receive a new future expiry.
+content and labels while preserving the record type, captured source, and
+creation time; temporary records can also receive a new future expiry.
 
-Click the SnippetVault toolbar icon to open or close the same retrieval
-experience in Chrome's global side panel. SnippetVault does not use an action
-popup; the side panel remains available while switching between supported web
-pages. The side panel adds exact context filters and clickable label filters.
+Click the SnippetVault toolbar icon to open the same in-page search panel
+without the keyboard shortcut. This also works in tabs that were open before
+SnippetVault was installed or updated. SnippetVault does not use an action
+popup. Chrome's side panel holds settings only: open it from the settings
+button in the search panel, or by clicking the toolbar icon on a page where
+extensions cannot run, such as Chrome built-in pages or the Chrome Web Store.
+Click a label on any result to filter by it.
 Temporary records can be extended by the configured default number of days or
 promoted to permanent Vault records; Vault records cannot be converted back to
 temporary records.
 
 SnippetVault supports English and Simplified Chinese. It follows Chrome's
 language by default; open the side panel settings to override that choice. The
-preference is stored locally and updates the side panel, selection tooltip, and
-in-page search modal without reloading the current website.
+preference is stored locally and updates the side panel, quick save confirmations,
+and in-page search modal without reloading the current website.
 
 SnippetVault follows the operating-system theme by default. Use the theme
 control in side panel settings to choose light or dark explicitly. Theme changes
 stay local to the extension UI and never restyle the current website.
 
-Side panel settings are organized into **General**, **Contexts & workspace**,
-**Labels**, and **Storage**. Contexts combine a name and one of the preset
-colors; records keep the stable context ID, so preset renames and color changes
-apply to every linked record. New temporary records expire after seven days by
-default; this can be changed to
-any whole number of at least one day. The setting is also the increment used by
-quick extension and does not bulk-change existing records. The Storage page
-can export a readable, versioned JSON backup with the `.sv` extension and
-preview then fully replace
-local business data from that format. Import does not merge data. Search
-indexes and UI preferences are excluded from backups. The exported file
-contains sensitive content in readable form and must be stored accordingly.
+Side panel settings are organized into **General**, **Labels**, and
+**Storage**. **General** holds the theme, language, quick save target, quick
+save exceptions, and the default temporary expiry. New temporary records expire
+after seven days by default; this can be changed to any whole number of at
+least one day. The setting is also the increment used by quick extension and
+does not bulk-change existing records.
+
+Contexts were removed in 0.4.0. When you upgrade, each record's context is
+converted to a label in one atomic storage migration, so it stays searchable;
+the four environment contexts become built-in labels. Export a backup before
+upgrading, because the migration cannot be reversed.
+
+The Storage page exports `.sv` backups as readable YAML (format version 2).
+Backups are encrypted with a passphrase by default (PBKDF2-SHA-256 and
+AES-256-GCM through WebCrypto). The passphrase is never stored and cannot be
+recovered. A plaintext export is still available and contains every snippet,
+secret, and source URL in readable form. Import previews the file, then fully
+replaces local business data; it does not merge. Version 1 JSON backups from
+earlier releases can still be imported, but SnippetVault 0.3.x cannot read
+version 2 backups. Search indexes and UI preferences are excluded from backups.
+See [Backup import and export security](docs/backup-import-export-security.md).
 Cloudflare R2 remains a future option; no cloud connection or credential
 storage is active.
 
@@ -166,3 +204,7 @@ The SnippetVault name, official logos and icons, extension-store listing
 assets, and biqn.dev branding are not licensed under MPL-2.0. Public forks may
 use the code, but must follow [TRADEMARKS.md](TRADEMARKS.md) and use a distinct
 product identity unless separate permission is granted.
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=biquanneng/snippet-vault&type=Date)](https://star-history.com/#biquanneng/snippet-vault&Date)

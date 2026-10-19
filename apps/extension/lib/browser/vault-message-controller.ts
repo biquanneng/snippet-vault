@@ -2,9 +2,6 @@
 
 import type {
   ConditionalMutationReceipt,
-  ContextColor,
-  ContextEnvironment,
-  ContextPreset,
   Label,
   MutationReceipt,
   SearchResult,
@@ -15,16 +12,10 @@ import type {
   WorkspaceItem,
 } from '../core/model';
 import {
-  BACKUP_FORMAT_VERSION,
   BackupFormatError,
   parseBackup,
   serializeBackup,
 } from '../backup-format';
-import {
-  DEFAULT_CONTEXT_COLOR,
-  ENVIRONMENT_CONTEXT_COLORS,
-  getContextPresetColor,
-} from '../context-colors';
 import type {
   BrowseOptions,
   BrowsePage,
@@ -36,9 +27,7 @@ import {
   type SupportedLocale,
 } from '../i18n-catalog';
 import {
-  ENVIRONMENT_DEFINITIONS,
   getBuiltInLabelAliases,
-  getLocalizedEnvironmentName,
   getLocalizedLabelName,
 } from '../localized-values';
 import {
@@ -47,19 +36,12 @@ import {
   workspaceExpiryDaysToMs,
 } from '../workspace-expiry';
 import {
-  MAX_CONTEXT_PRESET_NAME_LENGTH,
   MAX_BACKUP_CONTENT_LENGTH,
   MAX_LABEL_NAME_LENGTH,
   MAX_SELECTION_LENGTH,
+  MAX_SOURCE_TITLE_LENGTH,
   MESSAGE_TYPE,
-  type ArchiveContextPresetRequest,
   type ArchiveLabelRequest,
-  type ContextPresetListData,
-  type ContextPresetManagementEntry,
-  type ContextPresetManagementListData,
-  type ContextPresetSummary,
-  type CreateContextPresetData,
-  type CreateContextPresetRequest,
   type CreateLabelData,
   type CreateLabelRequest,
   type CreateSnippetRequest,
@@ -70,8 +52,6 @@ import {
   type ExtendWorkspaceItemData,
   type ExtendWorkspaceItemRequest,
   type ExtensionResponse,
-  type GetContextPresetManagementRequest,
-  type GetContextPresetsRequest,
   type GetLabelManagementRequest,
   type ImportBackupData,
   type ImportBackupRequest,
@@ -83,9 +63,7 @@ import {
   type MutationStatusData,
   type PromoteWorkspaceItemData,
   type PromoteWorkspaceItemRequest,
-  type RenameContextPresetRequest,
   type RenameLabelRequest,
-  type RestoreContextPresetRequest,
   type RestoreLabelRequest,
   type SaveSelectionData,
   type SaveSelectionRequest,
@@ -93,7 +71,6 @@ import {
   type SearchPanelItem,
   type UpdateSnippetData,
   type UpdateSnippetRequest,
-  type UpdateSnippetContextSelection,
   type SearchPanelRequest,
   type VaultDataRequest,
 } from './message-contract';
@@ -102,57 +79,28 @@ export const DEFAULT_WORKSPACE_TTL_MS = workspaceExpiryDaysToMs(
   DEFAULT_WORKSPACE_EXPIRY_DAYS,
 );
 
-const MAX_SOURCE_TITLE_LENGTH = 500;
 
 const DEFAULT_LABELS: readonly LabelSummary[] = [
   { id: 'ak', name: 'Access Key' },
   { id: 'sk', name: 'Secret Key' },
   { id: 'api-key', name: 'API Key' },
-  { id: 'api-secret', name: 'API Secret' },
-  { id: 'app-id', name: 'App ID' },
-  { id: 'app-key', name: 'App Key' },
-  { id: 'app-secret', name: 'App Secret' },
   { id: 'token', name: 'Token' },
-  { id: 'access-token', name: 'Access Token' },
-  { id: 'refresh-token', name: 'Refresh Token' },
   { id: 'account-id', name: 'Account ID' },
-  { id: 'client-id', name: 'Client ID' },
-  { id: 'client-secret', name: 'Client Secret' },
-  { id: 'tenant-id', name: 'Tenant ID' },
-  { id: 'project-id', name: 'Project ID' },
-  { id: 'webhook-secret', name: 'Webhook Secret' },
-  { id: 'signing-secret', name: 'Signing Secret' },
   { id: 'public-key', name: 'Public Key' },
   { id: 'private-key', name: 'Private Key' },
-  { id: 'license-key', name: 'License Key' },
+  { id: 'connection-string', name: 'Connection String' },
 ];
+
+/** Built-in labels that every backup must contain. */
+const REQUIRED_BACKUP_LABEL_IDS: ReadonlySet<string> = new Set(
+  DEFAULT_LABELS.map((label) => label.id),
+);
 
 const DEFAULT_LABEL_ORDER = new Map(
   DEFAULT_LABELS.map((label, index) => [label.id, index]),
 );
 
-const DEFAULT_CONTEXT_PRESETS: readonly Omit<
-  ContextPreset,
-  'createdAt' | 'updatedAt'
->[] = (
-  Object.entries(ENVIRONMENT_DEFINITIONS) as Array<
-    [ContextEnvironment, (typeof ENVIRONMENT_DEFINITIONS)[ContextEnvironment]]
-  >
-).map(([environment, definition]) => ({
-  id: `environment:${environment}`,
-  name: definition.canonicalContext,
-  color: ENVIRONMENT_CONTEXT_COLORS[environment],
-  environment,
-}));
-
-const DEFAULT_CONTEXT_ORDER = new Map(
-  DEFAULT_CONTEXT_PRESETS.map((preset, index) => [preset.id, index]),
-);
-
 type ControllerResponseData =
-  | ContextPresetListData
-  | ContextPresetManagementListData
-  | CreateContextPresetData
   | CreateLabelData
   | DeleteItemData
   | ExportBackupData
@@ -169,11 +117,7 @@ type ControllerResponseData =
 
 export interface VaultMessageService {
   listLabels(options?: { includeArchived?: boolean }): Promise<Label[]>;
-  listContextPresets(
-    options?: { includeArchived?: boolean },
-  ): Promise<ContextPreset[]>;
   saveLabel(label: Label): Promise<MutationReceipt>;
-  saveContextPreset(preset: ContextPreset): Promise<MutationReceipt>;
   touchLabelUsage(id: string, time: number): Promise<MutationReceipt>;
   saveVaultItem(item: VaultItem): Promise<MutationReceipt>;
   saveWorkspaceItem(item: WorkspaceItem): Promise<MutationReceipt>;
@@ -233,11 +177,18 @@ interface SaveItemInput {
   content: string;
   labelIds: string[];
   temporary: boolean;
-  contextId?: string;
   source?: SourceMetadata;
+  /** Reuse an identical active record of the same kind instead of saving. */
+  deduplicate?: boolean;
+  /**
+   * Drop archived or unknown labels instead of rejecting the save. Quick save
+   * sends detected labels the user never chose, so they must not block it.
+   */
+  ignoreUnavailableLabels?: boolean;
 }
 
 interface PreparedBackup {
+  formatVersion: 1 | 2;
   exportedAt: number;
   expiredWorkspaceItems: number;
   snapshot: VaultSnapshot;
@@ -249,7 +200,6 @@ export class VaultMessageController {
   private readonly idFactory: () => string;
   private readonly workspaceExpiryDaysProvider: () => Promise<number>;
   private defaultLabelsPromise: Promise<void> | null = null;
-  private defaultContextPresetsPromise: Promise<void> | null = null;
 
   constructor(options: VaultMessageControllerOptions) {
     this.service = options.service;
@@ -290,24 +240,6 @@ export class VaultMessageController {
     if (request.type === MESSAGE_TYPE.restoreLabel) {
       return this.restoreLabel(request, locale);
     }
-    if (request.type === MESSAGE_TYPE.getContextPresets) {
-      return this.getContextPresets(locale);
-    }
-    if (request.type === MESSAGE_TYPE.getContextPresetManagement) {
-      return this.getContextPresetManagement(locale);
-    }
-    if (request.type === MESSAGE_TYPE.createContextPreset) {
-      return this.createContextPreset(request, locale);
-    }
-    if (request.type === MESSAGE_TYPE.renameContextPreset) {
-      return this.renameContextPreset(request, locale);
-    }
-    if (request.type === MESSAGE_TYPE.archiveContextPreset) {
-      return this.archiveContextPreset(request, locale);
-    }
-    if (request.type === MESSAGE_TYPE.restoreContextPreset) {
-      return this.restoreContextPreset(request, locale);
-    }
     if (request.type === MESSAGE_TYPE.deleteItem) {
       return this.deleteItem(request);
     }
@@ -342,10 +274,7 @@ export class VaultMessageController {
   private async exportBackup(
     locale: SupportedLocale,
   ): Promise<ExtensionResponse<ExportBackupData>> {
-    await Promise.all([
-      this.ensureDefaultLabels(),
-      this.ensureDefaultContextPresets(),
-    ]);
+    await this.ensureDefaultLabels();
     const exportedAt = this.clock();
     const { snapshot } = await this.service.exportSnapshot();
 
@@ -368,7 +297,7 @@ export class VaultMessageController {
         data: {
           contents,
           fileName: createBackupFileName(exportedAt),
-          mimeType: 'application/json',
+          mimeType: 'application/yaml',
         },
       };
     } catch (error: unknown) {
@@ -443,6 +372,7 @@ export class VaultMessageController {
 
     return {
       exportedAt: parsed.exportedAt,
+      formatVersion: parsed.formatVersion,
       expiredWorkspaceItems,
       snapshot: {
         ...parsed.snapshot,
@@ -453,12 +383,8 @@ export class VaultMessageController {
 
   private assertRequiredBackupTaxonomy(snapshot: VaultSnapshot): void {
     const labelIds = new Set(snapshot.labels.map((label) => label.id));
-    const contextIds = new Set(
-      snapshot.contextPresets.map((preset) => preset.id),
-    );
     if (
-      DEFAULT_LABELS.some((label) => !labelIds.has(label.id)) ||
-      DEFAULT_CONTEXT_PRESETS.some((preset) => !contextIds.has(preset.id))
+      [...REQUIRED_BACKUP_LABEL_IDS].some((id) => !labelIds.has(id))
     ) {
       throw new BackupFormatError(
         'invalid',
@@ -473,6 +399,9 @@ export class VaultMessageController {
   ): ExtensionResponse<never> {
     if (!(error instanceof BackupFormatError)) {
       return failure('INTERNAL_ERROR', translate(locale, 'errors.internal'));
+    }
+    if (error.code === 'encrypted') {
+      return failure('ENCRYPTED_BACKUP', error.message);
     }
     if (error.code === 'unsupported') {
       return failure(
@@ -683,227 +612,6 @@ export class VaultMessageController {
     return { ok: true, data: { updated: true } };
   }
 
-  private async getContextPresets(
-    locale: SupportedLocale,
-  ): Promise<ExtensionResponse<ContextPresetListData>> {
-    await this.ensureDefaultContextPresets();
-    const presets = await this.service.listContextPresets();
-    return {
-      ok: true,
-      data: {
-        contextPresets: this.sortContextPresets(presets).map((preset) =>
-          toContextPresetSummary(preset, locale),
-        ),
-      },
-    };
-  }
-
-  private async getContextPresetManagement(
-    locale: SupportedLocale,
-  ): Promise<
-    ExtensionResponse<ContextPresetManagementListData>
-  > {
-    await this.ensureDefaultContextPresets();
-    const presets = await this.service.listContextPresets({
-      includeArchived: true,
-    });
-    return {
-      ok: true,
-      data: {
-        contextPresets: this.sortManagedContextPresets(presets).map((preset) => ({
-          ...toContextPresetSummary(preset, locale),
-          ...(preset.archivedAt !== undefined
-            ? { archivedAt: preset.archivedAt }
-            : {}),
-          builtIn: isBuiltInContextPreset(preset),
-        })),
-      },
-    };
-  }
-
-  private async createContextPreset(
-    request: CreateContextPresetRequest,
-    locale: SupportedLocale,
-  ): Promise<ExtensionResponse<CreateContextPresetData>> {
-    const name = request.payload.name.trim();
-    const color = request.payload.color ?? DEFAULT_CONTEXT_COLOR;
-    if (!name || name.length > MAX_CONTEXT_PRESET_NAME_LENGTH) {
-      return failure(
-        'INVALID_MESSAGE',
-        translate(locale, 'errors.contextTooLong'),
-      );
-    }
-
-    await this.ensureDefaultContextPresets();
-    const presets = await this.service.listContextPresets({
-      includeArchived: true,
-    });
-    const existing = this.findMatchingContextPreset(
-      presets,
-      name,
-      request.payload.environment,
-    );
-
-    if (existing && existing.archivedAt === undefined) {
-      return {
-        ok: true,
-        data: {
-          contextPreset: toContextPresetSummary(existing, locale),
-          created: false,
-        },
-      };
-    }
-
-    if (existing) {
-      const restored = restoreContextPresetRecord(
-        existing,
-        name,
-        color,
-        request.payload.environment,
-        this.clock(),
-      );
-      await this.service.saveContextPreset(restored);
-      return {
-        ok: true,
-        data: {
-          contextPreset: toContextPresetSummary(restored, locale),
-          created: false,
-          restored: true,
-        },
-      };
-    }
-
-    const now = this.clock();
-    const preset: ContextPreset = {
-      id: `context:${this.idFactory()}`,
-      name,
-      color,
-      ...(request.payload.environment
-        ? { environment: request.payload.environment }
-        : {}),
-      createdAt: now,
-      updatedAt: now,
-    };
-    await this.service.saveContextPreset(preset);
-
-    return {
-      ok: true,
-      data: {
-        contextPreset: toContextPresetSummary(preset, locale),
-        created: true,
-      },
-    };
-  }
-
-  private async renameContextPreset(
-    request: RenameContextPresetRequest,
-    locale: SupportedLocale,
-  ): Promise<ExtensionResponse<MutationStatusData>> {
-    const name = request.payload.name.trim();
-    if (!name || name.length > MAX_CONTEXT_PRESET_NAME_LENGTH) {
-      return failure(
-        'INVALID_MESSAGE',
-        translate(locale, 'errors.contextTooLong'),
-      );
-    }
-
-    await this.ensureDefaultContextPresets();
-    const presets = await this.service.listContextPresets({
-      includeArchived: true,
-    });
-    const preset = presets.find((candidate) => candidate.id === request.payload.id);
-    if (!preset) {
-      return { ok: true, data: { updated: false } };
-    }
-    if (isBuiltInContextPreset(preset)) {
-      return failure(
-        'INVALID_MESSAGE',
-        translate(locale, 'errors.invalidRequest'),
-      );
-    }
-    if (
-      this.hasConflictingContextPreset(
-        presets,
-        preset.id,
-        name,
-        preset.environment,
-      )
-    ) {
-      return failure(
-        'INVALID_MESSAGE',
-        translate(locale, 'errors.invalidRequest'),
-      );
-    }
-    const color = request.payload.color ?? getContextPresetColor(preset);
-    if (preset.name === name && getContextPresetColor(preset) === color) {
-      return { ok: true, data: { updated: false } };
-    }
-
-    await this.service.saveContextPreset({
-      ...preset,
-      name,
-      color,
-      updatedAt: this.clock(),
-    });
-    return { ok: true, data: { updated: true } };
-  }
-
-  private async archiveContextPreset(
-    request: ArchiveContextPresetRequest,
-    locale: SupportedLocale,
-  ): Promise<ExtensionResponse<MutationStatusData>> {
-    await this.ensureDefaultContextPresets();
-    const presets = await this.service.listContextPresets({
-      includeArchived: true,
-    });
-    const preset = presets.find((candidate) => candidate.id === request.payload.id);
-    if (!preset || preset.archivedAt !== undefined) {
-      return { ok: true, data: { updated: false } };
-    }
-
-    const now = this.clock();
-    await this.service.saveContextPreset({
-      ...preset,
-      archivedAt: now,
-      updatedAt: now,
-    });
-    return { ok: true, data: { updated: true } };
-  }
-
-  private async restoreContextPreset(
-    request: RestoreContextPresetRequest,
-    locale: SupportedLocale,
-  ): Promise<ExtensionResponse<MutationStatusData>> {
-    await this.ensureDefaultContextPresets();
-    const presets = await this.service.listContextPresets({
-      includeArchived: true,
-    });
-    const preset = presets.find((candidate) => candidate.id === request.payload.id);
-    if (!preset || preset.archivedAt === undefined) {
-      return { ok: true, data: { updated: false } };
-    }
-    if (
-      this.hasConflictingContextPreset(
-        presets,
-        preset.id,
-        preset.name,
-        preset.environment,
-      )
-    ) {
-      return failure(
-        'INVALID_MESSAGE',
-        translate(locale, 'errors.invalidRequest'),
-      );
-    }
-
-    await this.service.saveContextPreset({
-      ...preset,
-      archivedAt: undefined,
-      updatedAt: this.clock(),
-    });
-    return { ok: true, data: { updated: true } };
-  }
-
   private async saveSelection(
     request: SaveSelectionRequest,
     sender: MessageSenderContext,
@@ -927,8 +635,9 @@ export class VaultMessageController {
         content: request.payload.content,
         labelIds: request.payload.labelIds,
         temporary: request.payload.temporary,
-        contextId: request.payload.contextId,
         ...(source ? { source } : {}),
+        deduplicate: true,
+        ignoreUnavailableLabels: true,
       },
       locale,
     );
@@ -948,33 +657,44 @@ export class VaultMessageController {
         content: request.payload.content,
         labelIds: request.payload.labelIds,
         temporary: request.payload.kind === 'workspace',
-        contextId: request.payload.contextId,
+        ...this.toCreateSource(request.payload.source),
       },
       locale,
     );
+  }
+
+  /** Manual snippets keep a source only when it is a real HTTP(S) page. */
+  private toCreateSource(
+    source: CreateSnippetRequest['payload']['source'],
+  ): Pick<SaveItemInput, 'source'> {
+    if (!source || !isSupportedPageUrl(source.url)) {
+      return {};
+    }
+    const created = createSource(
+      normalizeOptionalText(source.title, MAX_SOURCE_TITLE_LENGTH),
+      source.url,
+    );
+    return created ? { source: created } : {};
   }
 
   private async saveItem(
     input: SaveItemInput,
     locale: SupportedLocale,
   ): Promise<ExtensionResponse<SaveSelectionData>> {
-    await Promise.all([
-      this.ensureDefaultLabels(),
-      this.ensureDefaultContextPresets(),
-    ]);
-    const [labels, contextPresets] = await Promise.all([
-      this.service.listLabels(),
-      this.service.listContextPresets(),
-    ]);
+    await this.ensureDefaultLabels();
+    const labels = await this.service.listLabels();
     const labelById = new Map(labels.map((label) => [label.id, label]));
-    const selectedLabels = input.labelIds.flatMap((labelId) => {
+    const labelIds = input.ignoreUnavailableLabels
+      ? input.labelIds.filter((labelId) => labelById.has(labelId))
+      : input.labelIds;
+    const selectedLabels = labelIds.flatMap((labelId) => {
       const label = labelById.get(labelId);
       return label ? [label] : [];
     });
 
     if (
-      new Set(input.labelIds).size !== input.labelIds.length ||
-      selectedLabels.length !== input.labelIds.length
+      new Set(labelIds).size !== labelIds.length ||
+      selectedLabels.length !== labelIds.length
     ) {
       return failure(
         'INVALID_LABEL',
@@ -982,33 +702,50 @@ export class VaultMessageController {
       );
     }
 
-    const contextResolution = this.resolveContextId(
-      input.contextId,
-      contextPresets,
-      locale,
-    );
-    if (!contextResolution.ok) {
-      return contextResolution.error;
+    const kind = input.temporary ? 'workspace' : 'vault';
+    if (input.deduplicate) {
+      // Quick save is one keystroke away from a repeat; never stack copies.
+      const { snapshot } = await this.service.exportSnapshot();
+      const existing = snapshot.records.find(
+        (record) =>
+          record.kind === kind && record.item.content === input.content,
+      );
+      if (existing) {
+        return {
+          ok: true,
+          data: {
+            id: existing.item.id,
+            kind,
+            updatedAt: existing.item.updatedAt,
+            ...(existing.kind === 'workspace'
+              ? { expiresAt: existing.item.expiresAt }
+              : {}),
+            duplicate: true,
+            searchStatus: 'synchronized',
+            labelStatus: 'updated',
+          },
+        };
+      }
     }
 
     const now = this.clock();
     const id = this.idFactory();
+    const expiresAt = input.temporary
+      ? now + await this.getWorkspaceTtlMs()
+      : undefined;
     const baseItem = {
       id,
       content: input.content,
       labelIds: selectedLabels.map((label) => label.id),
-      ...(contextResolution.contextId
-        ? { contextId: contextResolution.contextId }
-        : {}),
       ...(input.source ? { source: input.source } : {}),
       createdAt: now,
       updatedAt: now,
     };
 
-    const receipt = input.temporary
+    const receipt = expiresAt !== undefined
       ? await this.service.saveWorkspaceItem({
           ...baseItem,
-          expiresAt: now + await this.getWorkspaceTtlMs(),
+          expiresAt,
         })
       : await this.service.saveVaultItem({
           ...baseItem,
@@ -1028,7 +765,10 @@ export class VaultMessageController {
       ok: true,
       data: {
         id,
-        kind: input.temporary ? 'workspace' : 'vault',
+        kind,
+        updatedAt: now,
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+        duplicate: false,
         searchStatus: receipt.searchStatus,
         labelStatus,
       },
@@ -1161,10 +901,7 @@ export class VaultMessageController {
       return contentError;
     }
 
-    await Promise.all([
-      this.ensureDefaultLabels(),
-      this.ensureDefaultContextPresets(),
-    ]);
+    await this.ensureDefaultLabels();
 
     const existing = await this.service.getItem({
       kind: request.payload.kind,
@@ -1180,10 +917,7 @@ export class VaultMessageController {
       return this.toUpdateFailure('conflict', locale);
     }
 
-    const [labels, contextPresets] = await Promise.all([
-      this.service.listLabels({ includeArchived: true }),
-      this.service.listContextPresets({ includeArchived: true }),
-    ]);
+    const labels = await this.service.listLabels({ includeArchived: true });
 
     const labelSelection = this.resolveUpdatedLabels(
       existing.item.labelIds,
@@ -1193,16 +927,6 @@ export class VaultMessageController {
     );
     if (!labelSelection.ok) {
       return labelSelection.error;
-    }
-
-    const contextSelection = this.resolveUpdatedContext(
-      existing.item.contextId,
-      request.payload.context,
-      contextPresets,
-      locale,
-    );
-    if (!contextSelection.ok) {
-      return contextSelection.error;
     }
 
     const now = Math.max(
@@ -1231,14 +955,8 @@ export class VaultMessageController {
       const updatedItem: WorkspaceItem = {
         ...existing.item,
         ...updatedContent,
-        ...(contextSelection.contextId
-          ? { contextId: contextSelection.contextId }
-          : {}),
         expiresAt,
       };
-      if (contextSelection.contextId === undefined) {
-        delete updatedItem.contextId;
-      }
       const mutation = await this.service.saveWorkspaceItemIfUnchanged(
         updatedItem,
         request.payload.expectedUpdatedAt,
@@ -1251,13 +969,7 @@ export class VaultMessageController {
       const updatedItem: VaultItem = {
         ...existing.item,
         ...updatedContent,
-        ...(contextSelection.contextId
-          ? { contextId: contextSelection.contextId }
-          : {}),
       };
-      if (contextSelection.contextId === undefined) {
-        delete updatedItem.contextId;
-      }
       const mutation = await this.service.saveVaultItemIfUnchanged(
         updatedItem,
         request.payload.expectedUpdatedAt,
@@ -1311,24 +1023,12 @@ export class VaultMessageController {
     request: SearchPanelRequest,
     locale: SupportedLocale,
   ): Promise<ExtensionResponse<SearchPanelData>> {
-    await Promise.all([
-      this.ensureDefaultLabels(),
-      this.ensureDefaultContextPresets(),
-    ]);
-    const [labels, contextPresets] = await Promise.all([
-      this.service.listLabels({ includeArchived: true }),
-      this.service.listContextPresets({ includeArchived: true }),
-    ]);
+    await this.ensureDefaultLabels();
+    const labels = await this.service.listLabels({ includeArchived: true });
     const labelById = new Map(
       labels.map((label) => [
         label.id,
         toLocalizedLabelSummary(label, locale),
-      ]),
-    );
-    const contextById = new Map(
-      contextPresets.map((preset) => [
-        preset.id,
-        toContextPresetSummary(preset, locale),
       ]),
     );
     const query = request.payload.query.trim();
@@ -1337,7 +1037,6 @@ export class VaultMessageController {
       const results = await this.service.search(query, {
         kind: request.payload.kind,
         limit: 50,
-        contextId: request.payload.contextId,
         labelId: request.payload.labelId,
       });
       return {
@@ -1345,7 +1044,7 @@ export class VaultMessageController {
         data: {
           kind: request.payload.kind,
           query,
-          items: toSearchPanelItems(results, labelById, contextById),
+          items: toSearchPanelItems(results, labelById),
           pagination: null,
         },
       };
@@ -1354,7 +1053,6 @@ export class VaultMessageController {
     const page = await this.service.browse(request.payload.kind, {
       offset: request.payload.page * request.payload.pageSize,
       limit: request.payload.pageSize,
-      contextId: request.payload.contextId,
       labelId: request.payload.labelId,
     });
     return {
@@ -1362,7 +1060,7 @@ export class VaultMessageController {
       data: {
         kind: request.payload.kind,
         query: '',
-        items: toSearchPanelItems(page.results, labelById, contextById),
+        items: toSearchPanelItems(page.results, labelById),
         pagination: {
           page: request.payload.page,
           pageSize: page.limit,
@@ -1451,50 +1149,6 @@ export class VaultMessageController {
     };
   }
 
-  private resolveUpdatedContext(
-    currentContextId: string | undefined,
-    selection: UpdateSnippetContextSelection | undefined,
-    contextPresets: ContextPreset[],
-    locale: SupportedLocale,
-  ):
-    | {
-        ok: true;
-        contextId: string | undefined;
-      }
-    | { ok: false; error: ExtensionResponse<never> } {
-    if (!selection || selection.mode === 'preserve') {
-      return {
-        ok: true,
-        contextId: currentContextId,
-      };
-    }
-
-    if (selection.mode === 'clear') {
-      return {
-        ok: true,
-        contextId: undefined,
-      };
-    }
-
-    const preset = contextPresets.find(
-      (candidate) => candidate.id === selection.contextId,
-    );
-    if (!preset || preset.archivedAt !== undefined) {
-      return {
-        ok: false,
-        error: failure(
-          'INVALID_MESSAGE',
-          translate(locale, 'errors.invalidRequest'),
-        ),
-      };
-    }
-
-    return {
-      ok: true,
-      contextId: preset.id,
-    };
-  }
-
   private resolveUpdatedWorkspaceExpiry(
     item: WorkspaceItem,
     request: UpdateSnippetRequest,
@@ -1558,17 +1212,6 @@ export class VaultMessageController {
     return this.defaultLabelsPromise;
   }
 
-  private async ensureDefaultContextPresets(): Promise<void> {
-    if (!this.defaultContextPresetsPromise) {
-      this.defaultContextPresetsPromise =
-        this.createMissingDefaultContextPresets().catch((error) => {
-          this.defaultContextPresetsPromise = null;
-          throw error;
-        });
-    }
-    return this.defaultContextPresetsPromise;
-  }
-
   private async createMissingDefaultLabels(): Promise<void> {
     const existing = await this.service.listLabels({ includeArchived: true });
     const existingIds = new Set(existing.map((label) => label.id));
@@ -1579,24 +1222,6 @@ export class VaultMessageController {
         await this.service.saveLabel({
           ...label,
           usageCount: 0,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
-    }
-  }
-
-  private async createMissingDefaultContextPresets(): Promise<void> {
-    const existing = await this.service.listContextPresets({
-      includeArchived: true,
-    });
-    const existingIds = new Set(existing.map((preset) => preset.id));
-    const now = this.clock();
-
-    for (const preset of DEFAULT_CONTEXT_PRESETS) {
-      if (!existingIds.has(preset.id)) {
-        await this.service.saveContextPreset({
-          ...preset,
           createdAt: now,
           updatedAt: now,
         });
@@ -1663,33 +1288,6 @@ export class VaultMessageController {
     });
   }
 
-  private sortContextPresets(
-    presets: ContextPreset[],
-  ): ContextPreset[] {
-    return [...presets].sort((left, right) => {
-      const leftDefault = DEFAULT_CONTEXT_ORDER.get(left.id);
-      const rightDefault = DEFAULT_CONTEXT_ORDER.get(right.id);
-      if (leftDefault !== undefined || rightDefault !== undefined) {
-        return (
-          (leftDefault ?? Number.POSITIVE_INFINITY) -
-          (rightDefault ?? Number.POSITIVE_INFINITY)
-        );
-      }
-      return left.name.localeCompare(right.name);
-    });
-  }
-
-  private sortManagedContextPresets(
-    presets: ContextPreset[],
-  ): ContextPreset[] {
-    return [...presets].sort((left, right) => {
-      if ((left.archivedAt === undefined) !== (right.archivedAt === undefined)) {
-        return left.archivedAt === undefined ? -1 : 1;
-      }
-      return this.sortContextPresets([left, right])[0] === left ? -1 : 1;
-    });
-  }
-
   private matchesLabelName(
     label: Pick<Label, 'id' | 'name'>,
     name: string,
@@ -1717,69 +1315,6 @@ export class VaultMessageController {
     );
   }
 
-  private findMatchingContextPreset(
-    presets: ContextPreset[],
-    name: string,
-    environment: ContextEnvironment | undefined,
-  ): ContextPreset | undefined {
-    const collator = new Intl.Collator(undefined, { sensitivity: 'accent' });
-    return presets.find((preset) => {
-      if (environment && preset.environment === environment) {
-        return true;
-      }
-      return collator.compare(preset.name, name) === 0;
-    });
-  }
-
-  private hasConflictingContextPreset(
-    presets: ContextPreset[],
-    currentId: string,
-    name: string,
-    environment: ContextEnvironment | undefined,
-  ): boolean {
-    const collator = new Intl.Collator(undefined, { sensitivity: 'accent' });
-    return presets.some((preset) => {
-      if (preset.id === currentId || preset.archivedAt !== undefined) {
-        return false;
-      }
-      if (environment && preset.environment === environment) {
-        return true;
-      }
-      return collator.compare(preset.name, name) === 0;
-    });
-  }
-
-  private resolveContextId(
-    contextId: string | undefined,
-    contextPresets: ContextPreset[],
-    locale: SupportedLocale,
-  ):
-    | {
-        ok: true;
-        contextId: string | undefined;
-      }
-    | { ok: false; error: ExtensionResponse<never> } {
-    if (!contextId) {
-      return { ok: true, contextId: undefined };
-    }
-
-    const preset = contextPresets.find((candidate) => candidate.id === contextId);
-    if (!preset) {
-      return {
-        ok: false,
-        error: failure(
-          'INVALID_MESSAGE',
-          translate(locale, 'errors.invalidRequest'),
-        ),
-      };
-    }
-
-    return {
-      ok: true,
-      contextId: preset.id,
-    };
-  }
-
   private isAuthorizedSender(
     request: VaultDataRequest,
     sender: MessageSenderContext,
@@ -1790,8 +1325,6 @@ export class VaultMessageController {
         request.type === MESSAGE_TYPE.createSnippet ||
         request.type === MESSAGE_TYPE.deleteItem ||
         request.type === MESSAGE_TYPE.extendWorkspaceItem ||
-        request.type === MESSAGE_TYPE.getContextPresetManagement ||
-        request.type === MESSAGE_TYPE.getContextPresets ||
         request.type === MESSAGE_TYPE.getLabels ||
         request.type === MESSAGE_TYPE.promoteWorkspaceItem ||
         request.type === MESSAGE_TYPE.searchPanel ||
@@ -1838,18 +1371,13 @@ export class VaultMessageController {
 function toSearchPanelItems(
   results: SearchResult[],
   labelById: ReadonlyMap<string, LabelSummary>,
-  contextById: ReadonlyMap<string, ContextPresetSummary>,
 ): SearchPanelItem[] {
   return results.flatMap<SearchPanelItem>((result) => {
     const item = result.item;
     const source = toSearchPanelSource(item);
-    const context = item.contextId
-      ? contextById.get(item.contextId)
-      : undefined;
     const base = {
       id: item.id,
       content: item.content,
-      ...(context ? { context } : {}),
       labels: item.labelIds
         .map((labelId) => labelById.get(labelId))
         .filter((label): label is LabelSummary => label !== undefined),
@@ -1936,62 +1464,15 @@ function toLocalizedLabelSummary(
   };
 }
 
-function toContextPresetSummary(
-  preset: Pick<ContextPreset, 'id' | 'name' | 'color' | 'environment'>,
-  locale: SupportedLocale,
-): ContextPresetSummary {
-  return {
-    id: preset.id,
-    name: preset.environment
-      ? getLocalizedEnvironmentName(preset.environment, locale)
-      : preset.name,
-    color: getContextPresetColor(preset),
-    ...(preset.environment ? { environment: preset.environment } : {}),
-  };
-}
-
 function getComparableLabelNames(
   label: Pick<Label, 'id' | 'name'>,
 ): string[] {
   return [label.name, ...getBuiltInLabelAliases(label.id)];
 }
 
-function restoreContextPresetRecord(
-  preset: ContextPreset,
-  name: string,
-  color: ContextColor,
-  environment: ContextEnvironment | undefined,
-  now: number,
-): ContextPreset {
-  if (preset.environment) {
-    return {
-      ...preset,
-      name: ENVIRONMENT_DEFINITIONS[preset.environment].canonicalContext,
-      color: getContextPresetColor(preset),
-      archivedAt: undefined,
-      updatedAt: now,
-    };
-  }
-  return {
-    ...preset,
-    name,
-    color,
-    ...(environment ? { environment } : {}),
-    archivedAt: undefined,
-    updatedAt: now,
-  };
-}
-
 function isBuiltInLabelId(id: string): boolean {
-  return DEFAULT_LABEL_ORDER.has(id);
-}
-
-function isBuiltInContextPreset(
-  preset: Pick<ContextPreset, 'id' | 'environment'>,
-): boolean {
-  return (
-    preset.environment !== undefined || DEFAULT_CONTEXT_ORDER.has(preset.id)
-  );
+  return DEFAULT_LABEL_ORDER.has(id) ||
+    (id.startsWith('environment:') && getBuiltInLabelAliases(id).length > 0);
 }
 
 function isSupportedPageUrl(value: string): boolean {
@@ -2019,10 +1500,9 @@ function toBackupSummary(
 
   return {
     exportedAt: new Date(prepared.exportedAt).toISOString(),
-    formatVersion: BACKUP_FORMAT_VERSION,
+    formatVersion: prepared.formatVersion,
     counts: {
       labels: prepared.snapshot.labels.length,
-      contexts: prepared.snapshot.contextPresets.length,
       vaultItems,
       workspaceItems,
     },
@@ -2050,6 +1530,7 @@ function failure(
 
 function createFailure(
   code:
+    | 'ENCRYPTED_BACKUP'
     | 'BACKUP_TOO_LARGE'
     | 'CONFLICT'
     | 'INTERNAL_ERROR'

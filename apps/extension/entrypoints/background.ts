@@ -11,6 +11,13 @@ import {
   VaultMessageController,
   type MessageSenderContext,
 } from '../lib/browser/vault-message-controller';
+import {
+  canHostInPagePanel,
+  isMessageOfType,
+  OPEN_IN_PAGE_PANEL_MESSAGE,
+  OPEN_SETTINGS_MESSAGE,
+  UNSUPPORTED_PAGE_NOTICE_KEY,
+} from '../lib/browser/in-page-panel';
 import { trackAnalyticsEvent } from '../lib/analytics';
 import { openSidePanel } from '../lib/analytics-events';
 import { createSnippetVaultService } from '../lib/core';
@@ -35,8 +42,10 @@ export default defineBackground(() => {
     trackAnalyticsEvent(openSidePanel());
   });
 
+  // The toolbar icon opens the in-page panel; the side panel only hosts
+  // settings and the fallback for pages that cannot run content scripts.
   void browser.sidePanel
-    .setPanelBehavior({ openPanelOnActionClick: true })
+    .setPanelBehavior({ openPanelOnActionClick: false })
     .catch((error: unknown) => {
       console.error(
         '[SnippetVault] Failed to configure the side panel action',
@@ -44,7 +53,26 @@ export default defineBackground(() => {
       );
     });
 
+  browser.action.onClicked.addListener((tab) => {
+    if (tab.id === undefined) {
+      return;
+    }
+    if (canHostInPagePanel(tab.url)) {
+      void openInPagePanel(tab.id);
+      return;
+    }
+    // Must run before any await to keep the click's user gesture.
+    openSettingsPanel(tab.id, true);
+  });
+
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (isMessageOfType(message, OPEN_SETTINGS_MESSAGE)) {
+      if (sender.id === browser.runtime.id && sender.tab?.id !== undefined) {
+        openSettingsPanel(sender.tab.id, false);
+      }
+      return false;
+    }
+
     if (isSelectionTooltipSuppressionMutationRequest(message)) {
       if (sender.id !== browser.runtime.id) {
         sendResponse(createSelectionTooltipSuppressionMutationResponse());
@@ -113,6 +141,41 @@ export default defineBackground(() => {
     return true;
   });
 });
+
+async function openInPagePanel(tabId: number): Promise<void> {
+  try {
+    await browser.tabs.sendMessage(tabId, { type: OPEN_IN_PAGE_PANEL_MESSAGE });
+    return;
+  } catch {
+    // No live content script: the tab predates install/update. Inject it.
+  }
+  try {
+    await browser.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        window.__snippetVaultOpenPanelOnMount__ = true;
+      },
+    });
+    await browser.scripting.executeScript({
+      target: { tabId },
+      files: ['/content-scripts/content.js'],
+    });
+  } catch (error: unknown) {
+    console.error('[SnippetVault] Failed to inject the in-page panel', error);
+  }
+}
+
+function openSettingsPanel(tabId: number, unsupportedPage: boolean): void {
+  browser.sidePanel.open({ tabId }).catch((error: unknown) => {
+    console.error('[SnippetVault] Failed to open the side panel', error);
+    void browser.runtime.openOptionsPage();
+  });
+  // Written after `open` so the gesture is spent first; the side panel also
+  // watches this key, so the order of arrival does not matter.
+  void browser.storage.session.set({
+    [UNSUPPORTED_PAGE_NOTICE_KEY]: unsupportedPage,
+  });
+}
 
 async function handleMessage(
   request: ExtensionRequest,

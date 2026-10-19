@@ -3,8 +3,6 @@
 import { MAX_SELECTION_LENGTH } from '../../lib/browser/message-contract';
 import { selectionFragmentToMarkdown } from './selection-markdown';
 
-const VIEWPORT_MARGIN = 12;
-const TOOLTIP_GAP = 8;
 const SELECTION_CONTEXT_BOUNDARIES = new Set([
   'article',
   'aside',
@@ -33,20 +31,9 @@ export interface SelectionBox {
   bottom: number;
 }
 
-export interface ElementSize {
-  width: number;
-  height: number;
-}
-
 export interface ViewportSize {
   width: number;
   height: number;
-}
-
-export interface TooltipPosition {
-  left: number;
-  top: number;
-  placement: 'above' | 'below';
 }
 
 export interface SelectionSnapshot {
@@ -183,38 +170,6 @@ export function cloneRangeContentsWithContext(
   return output;
 }
 
-export function calculateTooltipPosition(
-  selection: SelectionBox,
-  tooltip: ElementSize,
-  viewport: ViewportSize,
-): TooltipPosition {
-  const selectionCenter = (selection.left + selection.right) / 2;
-  const maximumLeft = Math.max(
-    VIEWPORT_MARGIN,
-    viewport.width - tooltip.width - VIEWPORT_MARGIN,
-  );
-  const left = clamp(
-    selectionCenter - tooltip.width / 2,
-    VIEWPORT_MARGIN,
-    maximumLeft,
-  );
-  const fitsAbove =
-    selection.top - tooltip.height - TOOLTIP_GAP >= VIEWPORT_MARGIN;
-  const proposedTop = fitsAbove
-    ? selection.top - tooltip.height - TOOLTIP_GAP
-    : selection.bottom + TOOLTIP_GAP;
-  const maximumTop = Math.max(
-    VIEWPORT_MARGIN,
-    viewport.height - tooltip.height - VIEWPORT_MARGIN,
-  );
-
-  return {
-    left: Math.round(left),
-    top: Math.round(clamp(proposedTop, VIEWPORT_MARGIN, maximumTop)),
-    placement: fitsAbove ? 'above' : 'below',
-  };
-}
-
 export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) {
     return false;
@@ -227,6 +182,71 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
+// Password fields are left out on purpose: browsers block copying them, so
+// the first copy would not behave natively. Types without the selection API
+// (email, number) are left out because their selection cannot be read.
+const SELECTABLE_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel']);
+
+export interface TextControlLike {
+  localName: string;
+  type?: string;
+  value: string;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+  getBoundingClientRect(): SelectionBox;
+}
+
+export interface TextControlSelectionSnapshot extends SelectionSnapshot {
+  start: number;
+  end: number;
+}
+
+/**
+ * Many consoles show API keys in a (read-only) input or textarea, whose
+ * selection never appears in `window.getSelection()`.
+ */
+export function getSelectableTextControl(
+  target: unknown,
+): TextControlLike | null {
+  const control = target as Partial<TextControlLike> | null;
+  if (!control || typeof control.value !== 'string') {
+    return null;
+  }
+  if (control.localName === 'textarea') {
+    return control as TextControlLike;
+  }
+  if (
+    control.localName === 'input' &&
+    SELECTABLE_INPUT_TYPES.has(control.type ?? '')
+  ) {
+    return control as TextControlLike;
+  }
+  return null;
+}
+
+export function readTextControlSnapshot(
+  control: TextControlLike,
+): TextControlSelectionSnapshot | null {
+  const { selectionStart: start, selectionEnd: end } = control;
+  if (start === null || end === null || start >= end) {
+    return null;
+  }
+
+  // Control values are plain text, which is already valid Markdown.
+  const markdown = normalizeSelectedText(control.value.slice(start, end));
+  if (!markdown) {
+    return null;
+  }
+
+  const { left, right, top, bottom } = control.getBoundingClientRect();
+  return {
+    markdown,
+    box: { left, right, top, bottom },
+    start,
+    end,
+  };
+}
+
 export function isSnippetVaultUiEvent(event: Event): boolean {
   return event
     .composedPath()
@@ -235,8 +255,4 @@ export function isSnippetVaultUiEvent(event: Event): boolean {
         target instanceof HTMLElement &&
         target.dataset.snippetVaultUi === 'true',
     );
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(Math.max(value, minimum), maximum);
 }

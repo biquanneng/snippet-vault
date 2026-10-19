@@ -6,15 +6,18 @@ import {
   Keyboard,
   Languages,
   Palette,
+  Zap,
 } from 'lucide-react';
 
 import { Kbd, KbdGroup } from '../../components/ui/kbd';
 import { useI18n } from '../../lib/use-i18n';
 import { AnalyticsPreference } from './AnalyticsPreference';
 import { LanguageSelect } from './LanguageSelect';
+import { QuickSaveTargetSelect } from './QuickSaveTargetSelect';
 import { SelectionTooltipSuppressionSettings } from './SelectionTooltipSuppressionSettings';
 import { SettingsBlock } from './SettingsBlock';
 import { ThemeSelect } from './ThemeSelect';
+import { WorkspaceSettings } from './WorkspaceSettings';
 
 export function GeneralSettings() {
   const { t } = useI18n();
@@ -83,6 +86,16 @@ export function GeneralSettings() {
           </div>
         </dl>
       </SettingsBlock>
+
+      <SettingsBlock
+        icon={Zap}
+        title={t('settings.quickSave.title')}
+        description={t('settings.quickSave.description')}
+      >
+        <QuickSaveTargetSelect />
+      </SettingsBlock>
+
+      <WorkspaceSettings />
 
       <SettingsBlock
         icon={EyeOff}

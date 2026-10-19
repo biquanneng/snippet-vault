@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 
 import {
   parseBackup,
@@ -8,7 +9,6 @@ import {
 } from '../backup-format';
 import type {
   ConditionalMutationReceipt,
-  ContextPreset,
   Label,
   MutationReceipt,
   SearchResult,
@@ -22,10 +22,10 @@ import {
   VaultMessageController,
   type VaultMessageService,
 } from './vault-message-controller';
+import type { SaveSelectionRequest } from './message-contract';
 
 class FakeVaultService implements VaultMessageService {
   readonly labels: Label[] = [];
-  readonly contextPresets: ContextPreset[] = [];
   readonly vaultItems: VaultItem[] = [];
   readonly workspaceItems: WorkspaceItem[] = [];
   afterSaveVaultItem?: () => void | Promise<void>;
@@ -38,7 +38,6 @@ class FakeVaultService implements VaultMessageService {
     return {
       snapshot: {
         labels: structuredClone(this.labels),
-        contextPresets: structuredClone(this.contextPresets),
         records: [
           ...this.vaultItems.map((item) => ({
             kind: 'vault' as const,
@@ -70,11 +69,6 @@ class FakeVaultService implements VaultMessageService {
     }
 
     this.labels.splice(0, this.labels.length, ...structuredClone(snapshot.labels));
-    this.contextPresets.splice(
-      0,
-      this.contextPresets.length,
-      ...structuredClone(snapshot.contextPresets),
-    );
     this.vaultItems.splice(
       0,
       this.vaultItems.length,
@@ -108,36 +102,12 @@ class FakeVaultService implements VaultMessageService {
     );
   }
 
-  async listContextPresets(
-    options?: { includeArchived?: boolean },
-  ): Promise<ContextPreset[]> {
-    return structuredClone(
-      options?.includeArchived
-        ? this.contextPresets
-        : this.contextPresets.filter(
-            (preset) => preset.archivedAt === undefined,
-          ),
-    );
-  }
-
   async saveLabel(label: Label): Promise<MutationReceipt> {
     const existing = this.labels.findIndex((candidate) => candidate.id === label.id);
     if (existing === -1) {
       this.labels.push(structuredClone(label));
     } else {
       this.labels[existing] = structuredClone(label);
-    }
-    return synchronizedReceipt();
-  }
-
-  async saveContextPreset(preset: ContextPreset): Promise<MutationReceipt> {
-    const existing = this.contextPresets.findIndex(
-      (candidate) => candidate.id === preset.id,
-    );
-    if (existing === -1) {
-      this.contextPresets.push(structuredClone(preset));
-    } else {
-      this.contextPresets[existing] = structuredClone(preset);
     }
     return synchronizedReceipt();
   }
@@ -295,7 +265,6 @@ class FakeVaultService implements VaultMessageService {
     options: {
       kind?: 'vault' | 'workspace';
       limit?: number;
-      contextId?: string;
       labelId?: string;
     },
   ): Promise<SearchResult[]> {
@@ -307,7 +276,6 @@ class FakeVaultService implements VaultMessageService {
     options: {
       offset?: number;
       limit?: number;
-      contextId?: string;
       labelId?: string;
     },
   ): Promise<BrowsePage> {
@@ -326,7 +294,7 @@ class FakeVaultService implements VaultMessageService {
 
   private results(
     kind?: 'vault' | 'workspace',
-    filters: { contextId?: string; labelId?: string } = {},
+    filters: { labelId?: string } = {},
   ): SearchResult[] {
     const vaultResults = this.vaultItems.map(
       (item): SearchResult => ({
@@ -343,7 +311,6 @@ class FakeVaultService implements VaultMessageService {
     return [...vaultResults, ...workspaceResults].filter(
       (result) =>
         (!kind || result.ref.kind === kind) &&
-        (!filters.contextId || result.item.contextId === filters.contextId) &&
         (!filters.labelId || result.item.labelIds.includes(filters.labelId)),
     );
   }
@@ -383,6 +350,35 @@ function conditionalReceipt(
 }
 
 describe('VaultMessageController', () => {
+  it.each(['snippet-vault/inspect-backup', 'snippet-vault/import-backup'] as const)(
+    'returns a decrypt-first error for encrypted envelopes via %s', async (type) => {
+      const service = new FakeVaultService();
+      const contents = 'format: snippet-vault-export\nformatVersion: 2\nencryption: {}\nciphertext: abc\n';
+      const response = await createController(service).handle(
+        type === 'snippet-vault/import-backup'
+          ? { type, payload: { contents, expectedDataRevision: 1 } }
+          : { type, payload: { contents } },
+        trustedExtensionPageSender,
+      );
+      expect(response).toMatchObject({ ok: false, error: { code: 'ENCRYPTED_BACKUP' } });
+      expect(service.dataRevision).toBe(1);
+    },
+  );
+
+  it('reports v1 when inspecting a legacy JSON backup', async () => {
+    const service = new FakeVaultService();
+    const controller = createController(service);
+    const exported = await controller.handle({ type: 'snippet-vault/export-backup' }, trustedExtensionPageSender);
+    if (!exported.ok || !('contents' in exported.data)) throw new Error('Expected export');
+    const document = parseYaml(exported.data.contents) as Record<string, unknown>;
+    document.formatVersion = 1;
+    const response = await controller.handle({
+      type: 'snippet-vault/inspect-backup',
+      payload: { contents: JSON.stringify(document) },
+    }, trustedExtensionPageSender);
+    expect(response).toMatchObject({ ok: true, data: { formatVersion: 1 } });
+  });
+
   it('exports a complete plaintext backup from an extension page', async () => {
     const service = new FakeVaultService();
     service.vaultItems.push({
@@ -406,16 +402,16 @@ describe('VaultMessageController', () => {
       ok: true,
       data: {
         fileName: 'snippet-vault-19700101-000001Z.sv',
-        mimeType: 'application/json',
+        mimeType: 'application/yaml',
       },
     });
     if (!response.ok || !('contents' in response.data)) {
       throw new Error('Expected a backup export');
     }
     const parsed = parseBackup(response.data.contents);
+    expect(response.data.contents).toMatch(/^format: snippet-vault-export\nformatVersion: 2\n/);
     expect(parsed.exportedAt).toBe(1_000);
-    expect(parsed.snapshot.labels).toHaveLength(20);
-    expect(parsed.snapshot.contextPresets).toHaveLength(4);
+    expect(parsed.snapshot.labels).toHaveLength(8);
     expect(parsed.snapshot.records).toContainEqual({
       kind: 'vault',
       item: service.vaultItems[0],
@@ -484,10 +480,9 @@ describe('VaultMessageController', () => {
       ok: true,
       data: {
         exportedAt: new Date(1_000).toISOString(),
-        formatVersion: 1,
+        formatVersion: 2,
         counts: {
-          labels: 20,
-          contexts: 4,
+          labels: 8,
           vaultItems: 1,
           workspaceItems: 1,
         },
@@ -593,37 +588,37 @@ describe('VaultMessageController', () => {
           { id: 'ak', name: 'Access Key' },
           { id: 'sk', name: 'Secret Key' },
           { id: 'api-key', name: 'API Key' },
-          { id: 'api-secret', name: 'API Secret' },
-          { id: 'app-id', name: 'App ID' },
-          { id: 'app-key', name: 'App Key' },
-          { id: 'app-secret', name: 'App Secret' },
           { id: 'token', name: 'Token' },
-          { id: 'access-token', name: 'Access Token' },
-          { id: 'refresh-token', name: 'Refresh Token' },
           { id: 'account-id', name: 'Account ID' },
-          { id: 'client-id', name: 'Client ID' },
-          { id: 'client-secret', name: 'Client Secret' },
-          { id: 'tenant-id', name: 'Tenant ID' },
-          { id: 'project-id', name: 'Project ID' },
-          { id: 'webhook-secret', name: 'Webhook Secret' },
-          { id: 'signing-secret', name: 'Signing Secret' },
           { id: 'public-key', name: 'Public Key' },
           { id: 'private-key', name: 'Private Key' },
-          { id: 'license-key', name: 'License Key' },
+          { id: 'connection-string', name: 'Connection String' },
         ],
       },
     });
-    expect(service.labels).toHaveLength(20);
+    expect(service.labels).toHaveLength(8);
     expect(service.labels).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'ak', name: 'Access Key' }),
         expect.objectContaining({ id: 'sk', name: 'Secret Key' }),
         expect.objectContaining({
-          id: 'client-secret',
-          name: 'Client Secret',
+          id: 'connection-string',
+          name: 'Connection String',
         }),
       ]),
     );
+  });
+
+  it('localizes migrated environment labels and treats them as built-ins without seeding others', async () => {
+    const service = new FakeVaultService();
+    service.labels.push({ id: 'environment:production', name: '生产环境', usageCount: 1, createdAt: 100, updatedAt: 100 });
+    const controller = createController(service);
+    const response = await controller.handle({ type: 'snippet-vault/get-label-management', locale: 'en' }, trustedExtensionPageSender);
+    expect(response).toMatchObject({ ok: true, data: { labels: expect.arrayContaining([
+      expect.objectContaining({ id: 'environment:production', name: 'Production', builtIn: true }),
+    ]) } });
+    expect(service.labels.filter((label) => label.id.startsWith('environment:'))).toHaveLength(1);
+    expect(service.labels.find((label) => label.id === 'environment:production')?.name).toBe('生产环境');
   });
 
   it('localizes legacy built-in labels without rewriting stored label data', async () => {
@@ -799,6 +794,98 @@ describe('VaultMessageController', () => {
       usageCount: 1,
       lastUsedAt: 1_000,
     });
+  });
+
+  it('quick saves without detected labels the user has archived', async () => {
+    const service = new FakeVaultService();
+    const controller = createController(service);
+    await controller.handle({ type: 'snippet-vault/get-labels' }, trustedSender);
+    const accessKey = service.labels.find((label) => label.id === 'ak');
+    if (!accessKey) {
+      throw new Error('Expected the built-in Access Key label');
+    }
+    accessKey.archivedAt = 500;
+
+    const response = await controller.handle(
+      {
+        type: 'snippet-vault/save-selection',
+        payload: {
+          content: 'AKIAIOSFODNN7EXAMPLE',
+          labelIds: ['ak', 'missing-label'],
+          temporary: true,
+        },
+      },
+      trustedSender,
+    );
+
+    expect(response).toMatchObject({ ok: true, data: { duplicate: false } });
+    expect(service.workspaceItems[0]?.labelIds).toEqual([]);
+  });
+
+  it('still rejects unavailable labels chosen in the New form', async () => {
+    const service = new FakeVaultService();
+    const controller = createController(service);
+
+    const response = await controller.handle(
+      {
+        type: 'snippet-vault/create-snippet',
+        payload: {
+          kind: 'vault',
+          content: 'manual snippet',
+          labelIds: ['missing-label'],
+        },
+      },
+      trustedExtensionPageSender,
+    );
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_LABEL' },
+    });
+  });
+
+  it('reuses an identical quick save instead of stacking copies', async () => {
+    const service = new FakeVaultService();
+    const controller = createController(service);
+    const request: SaveSelectionRequest = {
+      type: 'snippet-vault/save-selection',
+      payload: {
+        content: 'AKIAIOSFODNN7EXAMPLE',
+        labelIds: [],
+        temporary: true,
+      },
+    };
+
+    const first = await controller.handle(request, trustedSender);
+    const second = await controller.handle(request, trustedSender);
+
+    expect(first).toMatchObject({
+      ok: true,
+      data: { kind: 'workspace', duplicate: false, updatedAt: 1_000 },
+    });
+    if (!first.ok || !('id' in first.data) || !('expiresAt' in first.data)) {
+      throw new Error('Expected a saved workspace item');
+    }
+    expect(second).toEqual({
+      ok: true,
+      data: {
+        id: first.data.id,
+        kind: 'workspace',
+        updatedAt: 1_000,
+        expiresAt: first.data.expiresAt,
+        duplicate: true,
+        searchStatus: 'synchronized',
+        labelStatus: 'updated',
+      },
+    });
+    expect(service.workspaceItems).toHaveLength(1);
+
+    // The same content saved to the other target is a distinct record.
+    await controller.handle(
+      { ...request, payload: { ...request.payload, temporary: false } },
+      trustedSender,
+    );
+    expect(service.vaultItems).toHaveLength(1);
   });
 
   it('selects an existing label name without creating a duplicate', async () => {
@@ -980,15 +1067,8 @@ describe('VaultMessageController', () => {
     });
   });
 
-  it('saves the exact selected Markdown with optional labels, context ID and trusted page source', async () => {
+  it('saves the exact selected Markdown with optional labels and trusted page source', async () => {
     const service = new FakeVaultService();
-    service.contextPresets.push({
-      id: 'context:meowdex-production',
-      name: 'meowdex production',
-      color: 'slate',
-      createdAt: 100,
-      updatedAt: 100,
-    });
     const controller = createController(service);
 
     const response = await controller.handle(
@@ -996,8 +1076,7 @@ describe('VaultMessageController', () => {
         type: 'snippet-vault/save-selection',
         payload: {
           content: '  **sk-live-preserve-whitespace**  ',
-          labelIds: ['token', 'client-id'],
-          contextId: 'context:meowdex-production',
+          labelIds: ['token', 'account-id'],
           sourceTitle: '  Credentials  ',
           temporary: false,
         },
@@ -1017,8 +1096,7 @@ describe('VaultMessageController', () => {
       {
         id: 'generated-id',
         content: '  **sk-live-preserve-whitespace**  ',
-        labelIds: ['token', 'client-id'],
-        contextId: 'context:meowdex-production',
+        labelIds: ['token', 'account-id'],
         source: {
           title: 'Credentials',
           url: 'https://console.example.com/project/alpha',
@@ -1034,7 +1112,7 @@ describe('VaultMessageController', () => {
       lastUsedAt: 1_000,
     });
     expect(
-      service.labels.find((label) => label.id === 'client-id'),
+      service.labels.find((label) => label.id === 'account-id'),
     ).toMatchObject({
       usageCount: 1,
       lastUsedAt: 1_000,
@@ -1102,249 +1180,49 @@ describe('VaultMessageController', () => {
     );
   });
 
-  it('returns context filters to trusted content panels and keeps context CRUD on extension pages', async () => {
+  it('keeps a manual snippet source only for HTTP(S) pages', async () => {
     const service = new FakeVaultService();
-    const controller = createController(service);
-
-    await expect(
-      controller.handle(
-        { type: 'snippet-vault/get-context-preset-management' },
-        { ...trustedSender, senderId: 'other-extension' },
-      ),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: { code: 'UNAUTHORIZED' },
-    });
-
-    await expect(
-      controller.handle(
-        { type: 'snippet-vault/get-context-preset-management' },
-        trustedSender,
-      ),
-    ).resolves.toMatchObject({
-      ok: true,
-      data: {
-        contextPresets: expect.arrayContaining([
-          expect.objectContaining({
-            id: 'environment:development',
-            builtIn: true,
-          }),
-        ]),
-      },
-    });
-
-    await expect(
-      controller.handle(
-        { type: 'snippet-vault/get-context-presets' },
-        trustedSender,
-      ),
-    ).resolves.toEqual({
-      ok: true,
-      data: {
-        contextPresets: [
-          {
-            id: 'environment:development',
-            name: 'Development',
-            environment: 'development',
-            color: 'blue',
-          },
-          {
-            id: 'environment:test',
-            name: 'Test',
-            environment: 'test',
-            color: 'cyan',
-          },
-          {
-            id: 'environment:staging',
-            name: 'Staging',
-            environment: 'staging',
-            color: 'amber',
-          },
-          {
-            id: 'environment:production',
-            name: 'Production',
-            environment: 'production',
-            color: 'red',
-          },
-        ],
-      },
-    });
-
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/create-context-preset',
-          payload: { name: '  Shared QA  ', color: 'purple' },
-        },
-        trustedExtensionPageSender,
-      ),
-    ).resolves.toEqual({
-      ok: true,
-      data: {
-          contextPreset: {
-            id: 'context:generated-id',
-            name: 'Shared QA',
-            color: 'purple',
-          },
-        created: true,
-      },
-    });
-
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/rename-context-preset',
-          payload: {
-            id: 'environment:development',
-            name: '开发',
-          },
-        },
-        trustedExtensionPageSender,
-      ),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: { code: 'INVALID_MESSAGE' },
-    });
-
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/rename-context-preset',
-          payload: {
-            id: 'context:generated-id',
-            name: '  Shared QA Updated  ',
-            color: 'green',
-          },
-        },
-        trustedExtensionPageSender,
-      ),
-    ).resolves.toEqual({
-      ok: true,
-      data: { updated: true },
-    });
-
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/archive-context-preset',
-          payload: { id: 'context:generated-id' },
-        },
-        trustedExtensionPageSender,
-      ),
-    ).resolves.toEqual({
-      ok: true,
-      data: { updated: true },
-    });
-
-    const activeAfterArchive = await controller.handle(
-      { type: 'snippet-vault/get-context-presets' },
-      trustedSender,
-    );
-    expect(activeAfterArchive).toMatchObject({
-      ok: true,
-      data: {
-        contextPresets: expect.not.arrayContaining([
-          { id: 'context:generated-id', name: 'Shared QA Updated' },
-        ]),
-      },
-    });
-
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/restore-context-preset',
-          payload: { id: 'context:generated-id' },
-        },
-        trustedExtensionPageSender,
-      ),
-    ).resolves.toEqual({
-      ok: true,
-      data: { updated: true },
-    });
-  });
-
-  it('stores stable context IDs for built-in environments', async () => {
-    const service = new FakeVaultService();
-    const controller = createController(service);
-
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/create-snippet',
-          payload: {
-            kind: 'vault',
-            content: 'token with preset context',
-            labelIds: ['token'],
-            contextId: 'environment:production',
-          },
-        },
-        trustedExtensionPageSender,
-      ),
-    ).resolves.toMatchObject({
-      ok: true,
-      data: {
-        kind: 'vault',
-      },
-    });
-
-    expect(service.vaultItems[0]).toMatchObject({
-      contextId: 'environment:production',
-    });
-  });
-
-  it('keeps custom context identity stable when the preset changes', async () => {
-    const service = new FakeVaultService();
-    service.contextPresets.push({
-      id: 'context:meowdex',
-      name: 'meowdex',
-      color: 'purple',
-      createdAt: 100,
-      updatedAt: 100,
-    });
-    const controller = createController(service);
-
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/create-snippet',
-          payload: {
-            kind: 'workspace',
-            content: 'temporary deploy note',
-            labelIds: [],
-            contextId: 'context:meowdex',
-          },
-        },
-        trustedExtensionPageSender,
-      ),
-    ).resolves.toMatchObject({ ok: true });
-
-    expect(service.workspaceItems[0]).toMatchObject({
-      contextId: 'context:meowdex',
+    let nextId = 0;
+    const controller = new VaultMessageController({
+      service,
+      clock: () => 1_000,
+      idFactory: () => `generated-${(nextId += 1)}`,
     });
 
     await controller.handle(
       {
-        type: 'snippet-vault/rename-context-preset',
+        type: 'snippet-vault/create-snippet',
         payload: {
-          id: 'context:meowdex',
-          name: 'meowdex production',
-          color: 'red',
+          kind: 'vault',
+          content: 'from the console',
+          labelIds: [],
+          source: {
+            title: ' RAM 访问控制 ',
+            url: 'https://ram.console.aliyun.com/users',
+          },
+        },
+      },
+      trustedExtensionPageSender,
+    );
+    await controller.handle(
+      {
+        type: 'snippet-vault/create-snippet',
+        payload: {
+          kind: 'vault',
+          content: 'from a restricted page',
+          labelIds: [],
+          source: { title: 'Extensions', url: 'chrome://extensions/' },
         },
       },
       trustedExtensionPageSender,
     );
 
-    expect(
-      service.contextPresets.find(
-        (preset) => preset.id === 'context:meowdex',
-      ),
-    ).toMatchObject({
-      name: 'meowdex production',
-      color: 'red',
+    expect(service.vaultItems[0]?.source).toEqual({
+      title: 'RAM 访问控制',
+      url: 'https://ram.console.aliyun.com/users',
+      domain: 'ram.console.aliyun.com',
     });
-    expect(service.workspaceItems[0]).toMatchObject({
-      contextId: 'context:meowdex',
-    });
+    expect(service.vaultItems[1]?.source).toBeUndefined();
   });
 
   it('touches label usage atomically without overwriting a concurrent rename', async () => {
@@ -1472,18 +1350,10 @@ describe('VaultMessageController', () => {
 
   it('returns flat workspace search results without browse pagination', async () => {
     const service = new FakeVaultService();
-    service.contextPresets.push({
-      id: 'context:deployment',
-      name: 'deployment',
-      color: 'green',
-      createdAt: 100,
-      updatedAt: 100,
-    });
     service.workspaceItems.push({
       id: 'temporary',
       content: 'one-time-code',
       labelIds: [],
-      contextId: 'context:deployment',
       createdAt: 100,
       updatedAt: 100,
       expiresAt: 2_000,
@@ -1513,11 +1383,6 @@ describe('VaultMessageController', () => {
             kind: 'workspace',
             id: 'temporary',
             content: 'one-time-code',
-            context: {
-              id: 'context:deployment',
-              name: 'deployment',
-              color: 'green',
-            },
             labels: [],
             createdAt: 100,
             updatedAt: 100,
@@ -1529,7 +1394,7 @@ describe('VaultMessageController', () => {
     });
   });
 
-  it('applies exact context and label filters before browse pagination', async () => {
+  it('applies exact label filters before browse pagination', async () => {
     const service = new FakeVaultService();
     service.labels.push({
       id: 'token',
@@ -1538,28 +1403,19 @@ describe('VaultMessageController', () => {
       createdAt: 100,
       updatedAt: 100,
     });
-    service.contextPresets.push({
-      id: 'environment:production',
-      name: '生产环境',
-      color: 'red',
-      environment: 'production',
-      createdAt: 100,
-      updatedAt: 100,
-    });
     service.vaultItems.push(
       {
         id: 'matching',
         content: 'matching secret',
         labelIds: ['token'],
-        contextId: 'environment:production',
         pinned: false,
         createdAt: 100,
         updatedAt: 300,
       },
       {
-        id: 'wrong-context',
+        id: 'wrong-label',
         content: 'other secret',
-        labelIds: ['token'],
+        labelIds: ['note'],
         pinned: false,
         createdAt: 100,
         updatedAt: 200,
@@ -1575,7 +1431,6 @@ describe('VaultMessageController', () => {
           query: '',
           page: 0,
           pageSize: 1,
-          contextId: 'environment:production',
           labelId: 'token',
         },
       },
@@ -1588,12 +1443,6 @@ describe('VaultMessageController', () => {
         items: [
           {
             id: 'matching',
-            context: {
-              id: 'environment:production',
-              name: 'Production',
-              color: 'red',
-              environment: 'production',
-            },
           },
         ],
         pagination: {
@@ -1651,7 +1500,7 @@ describe('VaultMessageController', () => {
       data: {
         labels: expect.arrayContaining([
           { id: 'token', name: 'Token' },
-          { id: 'client-id', name: 'Client ID' },
+          { id: 'account-id', name: 'Account ID' },
         ]),
       },
     });
@@ -1663,8 +1512,7 @@ describe('VaultMessageController', () => {
           payload: {
             kind: 'vault',
             content: '  **manually entered token**  ',
-            labelIds: ['token', 'client-id'],
-            contextId: 'environment:production',
+            labelIds: ['token', 'account-id'],
           },
         },
         trustedExtensionPageSender,
@@ -1681,8 +1529,7 @@ describe('VaultMessageController', () => {
     expect(service.vaultItems).toContainEqual({
       id: 'generated-id',
       content: '  **manually entered token**  ',
-      labelIds: ['token', 'client-id'],
-      contextId: 'environment:production',
+      labelIds: ['token', 'account-id'],
       pinned: false,
       createdAt: 1_000,
       updatedAt: 1_000,
@@ -1694,7 +1541,7 @@ describe('VaultMessageController', () => {
       lastUsedAt: 1_000,
     });
     expect(
-      service.labels.find((label) => label.id === 'client-id'),
+      service.labels.find((label) => label.id === 'account-id'),
     ).toMatchObject({
       usageCount: 1,
       lastUsedAt: 1_000,
@@ -1730,7 +1577,6 @@ describe('VaultMessageController', () => {
           kind: 'workspace',
           content: 'temporary deployment token',
           labelIds: ['token'],
-          contextId: 'environment:staging',
         },
       },
       trustedSender,
@@ -1750,7 +1596,6 @@ describe('VaultMessageController', () => {
         id: 'generated-id',
         content: 'temporary deployment token',
         labelIds: ['token'],
-        contextId: 'environment:staging',
         createdAt: 1_000,
         updatedAt: 1_000,
         expiresAt: 1_000 + DEFAULT_WORKSPACE_TTL_MS,
@@ -1779,8 +1624,8 @@ describe('VaultMessageController', () => {
         updatedAt: 500,
       },
       {
-        id: 'client-id',
-        name: 'Client ID',
+        id: 'account-id',
+        name: 'Account ID',
         usageCount: 0,
         createdAt: 100,
         updatedAt: 100,
@@ -1790,7 +1635,6 @@ describe('VaultMessageController', () => {
       id: 'vault-edit',
       content: 'old secret',
       labelIds: ['token', 'legacy'],
-      contextId: 'context:shared-qa',
       source: {
         title: 'Console',
         url: 'https://console.example.com/projects/1',
@@ -1812,8 +1656,7 @@ describe('VaultMessageController', () => {
             id: 'vault-edit',
             expectedUpdatedAt: 900,
             content: 'new secret',
-            labelIds: ['token', 'legacy', 'client-id'],
-            context: { mode: 'clear' },
+            labelIds: ['token', 'legacy', 'account-id'],
           },
         },
         trustedExtensionPageSender,
@@ -1833,7 +1676,7 @@ describe('VaultMessageController', () => {
       {
         id: 'vault-edit',
         content: 'new secret',
-        labelIds: ['token', 'legacy', 'client-id'],
+        labelIds: ['token', 'legacy', 'account-id'],
         source: {
           title: 'Console',
           url: 'https://console.example.com/projects/1',
@@ -1859,7 +1702,7 @@ describe('VaultMessageController', () => {
       archivedAt: 500,
     });
     expect(
-      service.labels.find((label) => label.id === 'client-id'),
+      service.labels.find((label) => label.id === 'account-id'),
     ).toMatchObject({
       usageCount: 1,
       lastUsedAt: 1_000,
@@ -1872,7 +1715,6 @@ describe('VaultMessageController', () => {
       id: 'workspace-edit',
       content: 'temporary note',
       labelIds: [],
-      contextId: 'context:legacy',
       createdAt: 100,
       updatedAt: 900,
       expiresAt: 5_000,
@@ -1889,7 +1731,6 @@ describe('VaultMessageController', () => {
             expectedUpdatedAt: 900,
             content: 'temporary note updated',
             labelIds: [],
-            context: { mode: 'preserve' },
           },
         },
         trustedSender,
@@ -1907,7 +1748,6 @@ describe('VaultMessageController', () => {
     });
     expect(service.workspaceItems[0]).toMatchObject({
       content: 'temporary note updated',
-      contextId: 'context:legacy',
       expiresAt: 5_000,
       updatedAt: 1_000,
     });
@@ -1922,7 +1762,6 @@ describe('VaultMessageController', () => {
             expectedUpdatedAt: 1_000,
             content: 'temporary note updated again',
             labelIds: [],
-            context: { mode: 'clear' },
             expiresAt: 9_000,
           },
         },
@@ -1958,7 +1797,6 @@ describe('VaultMessageController', () => {
             expectedUpdatedAt: 1_001,
             content: 'temporary note updated again',
             labelIds: [],
-            context: { mode: 'preserve' },
             expiresAt: 999,
           },
         },
@@ -1992,7 +1830,6 @@ describe('VaultMessageController', () => {
             expectedUpdatedAt: 800,
             content: 'new secret',
             labelIds: ['token'],
-            context: { mode: 'preserve' },
           },
         },
         trustedExtensionPageSender,
@@ -2012,7 +1849,6 @@ describe('VaultMessageController', () => {
             expectedUpdatedAt: 900,
             content: 'new secret',
             labelIds: ['token'],
-            context: { mode: 'preserve' },
           },
         },
         trustedExtensionPageSender,
@@ -2023,7 +1859,7 @@ describe('VaultMessageController', () => {
     });
   });
 
-  it('preserves archived labels and historical context on edit but rejects newly selecting archived taxonomy', async () => {
+  it('preserves archived labels on edit but rejects newly selecting archived taxonomy', async () => {
     const service = new FakeVaultService();
     service.labels.push(
       {
@@ -2043,18 +1879,10 @@ describe('VaultMessageController', () => {
         updatedAt: 400,
       },
     );
-    service.contextPresets.push({
-      id: 'context:archived',
-      name: 'Shared QA',
-      archivedAt: 350,
-      createdAt: 100,
-      updatedAt: 350,
-    });
     service.workspaceItems.push({
       id: 'workspace-archive',
       content: 'temporary note',
       labelIds: ['legacy'],
-      contextId: 'context:archived',
       createdAt: 100,
       updatedAt: 900,
       expiresAt: 5_000,
@@ -2071,7 +1899,6 @@ describe('VaultMessageController', () => {
             expectedUpdatedAt: 900,
             content: 'temporary note preserved',
             labelIds: ['legacy'],
-            context: { mode: 'preserve' },
           },
         },
         trustedExtensionPageSender,
@@ -2086,7 +1913,6 @@ describe('VaultMessageController', () => {
     });
     expect(service.workspaceItems[0]).toMatchObject({
       labelIds: ['legacy'],
-      contextId: 'context:archived',
     });
 
     await expect(
@@ -2099,7 +1925,6 @@ describe('VaultMessageController', () => {
             expectedUpdatedAt: 1_000,
             content: 'temporary note preserved',
             labelIds: ['legacy', 'retired'],
-            context: { mode: 'preserve' },
           },
         },
         trustedExtensionPageSender,
@@ -2109,25 +1934,6 @@ describe('VaultMessageController', () => {
       error: { code: 'INVALID_LABEL' },
     });
 
-    await expect(
-      controller.handle(
-        {
-          type: 'snippet-vault/update-snippet',
-          payload: {
-            kind: 'workspace',
-            id: 'workspace-archive',
-            expectedUpdatedAt: 1_000,
-            content: 'temporary note preserved',
-            labelIds: ['legacy'],
-            context: { mode: 'set', contextId: 'context:archived' },
-          },
-        },
-        trustedExtensionPageSender,
-      ),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: { code: 'INVALID_MESSAGE' },
-    });
   });
 
   it('allows a trusted extension page to delete a saved item', async () => {
@@ -2222,7 +2028,6 @@ describe('VaultMessageController', () => {
       id: 'workspace-promote',
       content: 'temporary secret',
       labelIds: [],
-      contextId: 'environment:test',
       source: {
         title: 'Console',
         url: 'https://console.example.com/secret',
@@ -2257,7 +2062,6 @@ describe('VaultMessageController', () => {
         id: 'workspace-promote',
         content: 'temporary secret',
         labelIds: [],
-        contextId: 'environment:test',
         source: {
           title: 'Console',
           url: 'https://console.example.com/secret',
@@ -2464,7 +2268,6 @@ describe('VaultMessageController', () => {
             expectedUpdatedAt: 100,
             content: 'value',
             labelIds: ['token'],
-            context: { mode: 'preserve' },
           },
         },
         { ...trustedExtensionPageSender, senderId: 'other-extension' },
@@ -2487,9 +2290,11 @@ describe('VaultMessageController', () => {
         trustedSender,
       ),
     ).resolves.toMatchObject({
-      ok: false,
-      error: { code: 'INVALID_LABEL' },
+      // Quick save drops labels that are no longer available.
+      ok: true,
+      data: { kind: 'vault' },
     });
+    expect(service.vaultItems.at(-1)?.labelIds).toEqual(['token']);
 
     await expect(
       controller.handle(

@@ -2,7 +2,9 @@
 
 import ReactDOM from "react-dom/client";
 
-import "../assets/globals.css";
+import "./content/style.css";
+import { registerBrandFont } from "../lib/brand-font";
+import { registerPageSourceResponder } from "../lib/browser/page-source";
 import { initializeLanguage } from "../lib/i18n";
 import {
   getSelectionTooltipSuppressionPreferences,
@@ -13,11 +15,18 @@ import {
   initializeTheme,
 } from "../lib/theme";
 import { ContentOverlayRoot } from "./content/ContentOverlayRoot";
+import {
+  createContentLayer,
+  raiseContentLayer,
+} from "./content/content-top-layer";
 import { CONTENT_UI_SHADOW_CSS } from "./content/content-ui-boundary";
 
 declare global {
   interface Window {
-    __snippetVaultContentMounted__?: boolean;
+    /** The mounted instance's context; a stale one is invalid after update. */
+    __snippetVaultContentContext__?: { readonly isInvalid: boolean };
+    /** Set by the background right before it injects this script on demand. */
+    __snippetVaultOpenPanelOnMount__?: boolean;
   }
 }
 
@@ -26,10 +35,16 @@ export default defineContentScript({
   runAt: "document_idle",
   cssInjectionMode: "ui",
   async main(ctx) {
-    if (window.__snippetVaultContentMounted__) {
+    const mounted = window.__snippetVaultContentContext__;
+    if (mounted && !mounted.isInvalid) {
       return;
     }
-    window.__snippetVaultContentMounted__ = true;
+    window.__snippetVaultContentContext__ = ctx;
+    const openPanelOnMount = window.__snippetVaultOpenPanelOnMount__ === true;
+    window.__snippetVaultOpenPanelOnMount__ = false;
+    // Shadow roots can only use fonts registered on the document.
+    registerBrandFont();
+    ctx.onInvalidated(registerPageSourceResponder());
     const [, , initialSuppressionPreferences] = await Promise.all([
       initializeLanguage(),
       initializeTheme(),
@@ -42,17 +57,23 @@ export default defineContentScript({
       anchor: "body",
       css: CONTENT_UI_SHADOW_CSS,
       onMount(container) {
-        applyThemeToElement(container, getThemeSnapshot());
+        // Every surface, including Radix portals, lives in one top-layer
+        // element so host-page stacking contexts cannot cover it.
+        const layer = createContentLayer(document);
+        applyThemeToElement(layer, getThemeSnapshot());
         const app = document.createElement("div");
         app.dataset.snippetVaultUi = "true";
-        app.className = "pointer-events-none fixed inset-0 z-99";
-        container.append(app);
+        app.className = "contents";
+        layer.append(app);
+        container.append(layer);
+        raiseContentLayer(layer);
 
         const root = ReactDOM.createRoot(app);
         root.render(
           <ContentOverlayRoot
-            portalContainer={container}
+            portalContainer={layer}
             initialSuppressionPreferences={initialSuppressionPreferences}
+            initialSearchOpen={openPanelOnMount}
             subscribeToLocationChanges={(listener) => {
               let subscribed = true;
               ctx.addEventListener(
@@ -74,7 +95,9 @@ export default defineContentScript({
       },
       onRemove(root) {
         root?.unmount();
-        window.__snippetVaultContentMounted__ = false;
+        if (window.__snippetVaultContentContext__ === ctx) {
+          window.__snippetVaultContentContext__ = undefined;
+        }
       },
     });
 
