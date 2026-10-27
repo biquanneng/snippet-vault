@@ -76,6 +76,9 @@ jobs:
           path: |
             apps/extension/.output/*.zip
             apps/extension/.output/SHA256SUMS.txt
+          # `.output` is a dot-directory; upload-artifact skips hidden paths
+          # by default, even when the glob names them explicitly.
+          include-hidden-files: true
           if-no-files-found: error
 
       # Drafts stay private until a maintainer reviews and publishes them.
