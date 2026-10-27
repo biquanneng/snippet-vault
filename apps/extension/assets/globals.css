@@ -1,0 +1,189 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-surface: var(--surface);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* Both "SnippetVault" families are registered at runtime; see lib/brand-font.ts. */
+  --font-sans:
+    "SnippetVault Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+  --font-mono:
+    "SnippetVault JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", "PingFang SC",
+    "Microsoft YaHei", monospace;
+  /* Snippets are copied verbatim, so `->` or `!=` must not render as one glyph. */
+  --font-mono--font-feature-settings: "liga" 0, "calt" 0;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root,
+:host {
+  color-scheme: light;
+  /* Neutrals carry a faint cool hue so large white areas do not read as blank. */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.16 0.008 265);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.16 0.008 265);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0.008 265);
+  /* One step below the background: the list column and footer. */
+  --surface: oklch(0.982 0.003 265);
+  --primary: oklch(0.21 0.01 265);
+  --primary-foreground: oklch(0.985 0.002 265);
+  --secondary: oklch(0.962 0.005 265);
+  --secondary-foreground: oklch(0.21 0.01 265);
+  --muted: oklch(0.962 0.005 265);
+  --muted-foreground: oklch(0.54 0.015 265);
+  --accent: oklch(0.962 0.005 265);
+  /* Brand lime (#84CC16). Selection and focus indicators only, never text. */
+  --brand: oklch(0.768 0.204 130.85);
+  /* Darker lime for small glyphs such as the selected row's icon. */
+  --brand-strong: oklch(0.6 0.17 130.85);
+  --accent-foreground: oklch(0.21 0.01 265);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.918 0.006 265);
+  --input: oklch(0.918 0.006 265);
+  --ring: oklch(0.7 0.012 265);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.982 0.003 265);
+  --sidebar-foreground: oklch(0.16 0.008 265);
+  --sidebar-primary: oklch(0.21 0.01 265);
+  --sidebar-primary-foreground: oklch(0.985 0.002 265);
+  --sidebar-accent: oklch(0.962 0.005 265);
+  --sidebar-accent-foreground: oklch(0.21 0.01 265);
+  --sidebar-border: oklch(0.918 0.006 265);
+  --sidebar-ring: oklch(0.7 0.012 265);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.155 0.006 265);
+  --foreground: oklch(0.975 0.003 265);
+  --card: oklch(0.205 0.008 265);
+  --card-foreground: oklch(0.975 0.003 265);
+  --popover: oklch(0.205 0.008 265);
+  --popover-foreground: oklch(0.975 0.003 265);
+  --surface: oklch(0.185 0.008 265);
+  --primary: oklch(0.92 0.004 265);
+  --primary-foreground: oklch(0.21 0.01 265);
+  --secondary: oklch(0.27 0.01 265);
+  --secondary-foreground: oklch(0.975 0.003 265);
+  --muted: oklch(0.27 0.01 265);
+  --muted-foreground: oklch(0.71 0.012 265);
+  --accent: oklch(0.27 0.01 265);
+  --brand: oklch(0.768 0.204 130.85);
+  --brand-strong: oklch(0.8 0.19 130.85);
+  --accent-foreground: oklch(0.975 0.003 265);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.56 0.012 265);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.185 0.008 265);
+  --sidebar-foreground: oklch(0.975 0.003 265);
+  --sidebar-primary: oklch(0.92 0.004 265);
+  --sidebar-primary-foreground: oklch(0.21 0.01 265);
+  --sidebar-accent: oklch(0.27 0.01 265);
+  --sidebar-accent-foreground: oklch(0.975 0.003 265);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.56 0.012 265);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body,
+  #root {
+    @apply min-h-full;
+  }
+
+  body {
+    @apply m-0 min-w-80 bg-background font-sans text-foreground antialiased;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Sonner's unlayered stylesheet pins a system font stack on the toaster,
+   which would beat the layered `font-sans` utility. */
+[data-sonner-toaster][data-sonner-theme] {
+  @apply font-sans;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

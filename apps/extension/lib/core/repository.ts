@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: MPL-2.0
+
+import type {
+  ConditionalMutationResult,
+  ItemReference,
+  Label,
+  MutationResult,
+  PruneResult,
+  StorageMeta,
+  StoredRecord,
+  VaultSnapshotExport,
+  VaultSnapshot,
+  VaultItem,
+  WorkspaceItem,
+} from './model';
+
+export interface VaultRepository {
+  getMeta(): Promise<StorageMeta>;
+  /**
+   * Advances the derived index revision only if the business revision still
+   * matches. Incremental updates also pass the revision they started from so
+   * an interleaved writer cannot be skipped.
+   */
+  markSearchIndexed(
+    dataRevision: number,
+    searchSchemaVersion: number,
+    expectedIndexedRevision?: number,
+  ): Promise<boolean>;
+
+  putVaultItem(item: VaultItem): Promise<MutationResult>;
+  putWorkspaceItem(item: WorkspaceItem): Promise<MutationResult>;
+  putVaultItemIfUnchanged(
+    item: VaultItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationResult>;
+  putWorkspaceItemIfUnchanged(
+    item: WorkspaceItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationResult>;
+  putLabel(label: Label): Promise<MutationResult>;
+  touchLabelUsage(id: string, time: number): Promise<MutationResult>;
+  deleteItem(reference: ItemReference): Promise<MutationResult>;
+  promoteWorkspaceItem(
+    workspaceId: string,
+    vaultItem: VaultItem,
+    expectedUpdatedAt: number,
+  ): Promise<ConditionalMutationResult>;
+  pruneExpired(now: number): Promise<PruneResult>;
+
+  readSnapshot(now: number): Promise<VaultSnapshot>;
+  readSnapshotWithRevision(now: number): Promise<VaultSnapshotExport>;
+  replaceSnapshot(
+    snapshot: VaultSnapshot,
+    expectedDataRevision: number,
+  ): Promise<ConditionalMutationResult>;
+
+  getItem(reference: ItemReference): Promise<StoredRecord | null>;
+  getItems(references: ItemReference[]): Promise<StoredRecord[]>;
+  listActiveRecords(now: number): Promise<StoredRecord[]>;
+  listLabels(options?: { includeArchived?: boolean }): Promise<Label[]>;
+
+  close(): Promise<void>;
+}

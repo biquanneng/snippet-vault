@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/extension
+
+jobs:
+  verify:
+    name: Test, compile, and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/extension/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Compile TypeScript
+        run: pnpm compile
+
+      # `wxt zip` runs a production build first, then packs .output/chrome-mv3.
+      - name: Build and zip Chrome extension
+        run: pnpm zip
+
+      - name: Upload extension zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: snippet-vault-chrome-${{ github.sha }}
+          path: apps/extension/.output/*.zip
+          # `.output` is a dot-directory; upload-artifact skips hidden paths
+          # by default, even when the glob names them explicitly.
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,16 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "paths": {
+      "@": ["."],
+      "@/*": ["./*"],
+      "~": ["."],
+      "~/*": ["./*"],
+      "#analytics": ["./.wxt/analytics/index.ts"],
+      "#analytics/*": ["./.wxt/analytics/index.ts/*"]
+    }
+  }
+}

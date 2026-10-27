@@ -1,0 +1,471 @@
+{
+  "extName": "SnippetVault — 开发者代码片段管理器",
+  "extDescription": "在浏览器本地保存、搜索和复制 API 密钥、Token 与代码片段，不再反复翻找 .env 文件。",
+  "actionTitle": "打开 SnippetVault",
+  "commandOpenSearch": "打开 SnippetVault 检索",
+  "language": {
+    "label": "语言",
+    "system": "跟随浏览器",
+    "english": "English",
+    "chinese": "简体中文"
+  },
+  "theme": {
+    "label": "主题",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色"
+  },
+  "settings": {
+    "title": "设置",
+    "description": "管理 SnippetVault 的显示、保存与内容组织方式",
+    "open": "打开设置",
+    "unsupportedPage": {
+      "title": "当前页面无法使用 SnippetVault",
+      "description": "浏览器内置页面和扩展商店禁止插件运行。请在普通网页上点击工具栏图标或双击 Shift。",
+      "dismiss": "关闭提示"
+    },
+    "menu": {
+      "label": "设置分类",
+      "back": "返回设置",
+      "general": {
+        "title": "通用",
+        "description": "语言、主题、快捷键与页面例外"
+      },
+      "taxonomy": {
+        "title": "标签",
+        "description": "管理片段保存时使用的标签"
+      },
+      "storage": {
+        "title": "存储",
+        "description": "本地数据、备份导出与还原"
+      },
+      "sourceCode": "在 GitHub 上开源",
+      "star": "点个 Star",
+      "tools": {
+        "title": "工具",
+        "description": "在新标签页中打开开发者工具"
+      },
+      "guide": {
+        "title": "使用引导",
+        "description": "入口与快捷键一览"
+      }
+    },
+    "appearance": {
+      "title": "外观",
+      "description": "跟随操作系统，或固定使用浅色、深色主题。"
+    },
+    "language": {
+      "title": "语言",
+      "description": "选择 SnippetVault 各个界面使用的语言。"
+    },
+    "shortcuts": {
+      "title": "快捷键",
+      "description": "快捷键暂不支持修改。",
+      "openSearch": "打开页内检索",
+      "openSelectionTooltip": "快捷保存选区",
+      "doubleShiftLabel": "连续按两次 Shift",
+      "macosCopyLabel": "按住 Command，连续按两次 C",
+      "windowsCopyLabel": "按住 Ctrl，连续按两次 C"
+    },
+    "selectionTooltipSuppression": {
+      "title": "快捷保存例外",
+      "description": "在指定页面或网站停用快捷保存，同时保留页内检索能力。",
+      "loading": "正在加载例外规则",
+      "loadFailed": "快捷保存例外加载失败，已保存的规则不会被误判为空列表。",
+      "retry": "重试",
+      "empty": "还没有添加任何例外。",
+      "emptyHint": "快捷保存后，在提示中点击“更多”即可为当前页面或网站停用。",
+      "pageScope": "页面",
+      "siteScope": "网站",
+      "ruleCount": "共 $1 条例外",
+      "remove": "移除例外",
+      "removed": "例外已移除",
+      "clearAll": "清空全部例外",
+      "clearTitle": "清空所有快捷保存例外？",
+      "clearDescription": "所有已打开且受支持的页面和网站都会恢复快捷保存。",
+      "cancel": "取消",
+      "confirmClear": "全部清空",
+      "cleared": "已清空全部例外",
+      "writeFailed": "快捷保存例外更新失败，原有列表保持不变。"
+    },
+    "analytics": {
+      "title": "匿名使用数据",
+      "description": "向 Google Analytics 分享两个检索入口的打开次数，帮助改进 SnippetVault。此功能默认关闭。",
+      "toggle": "分享匿名使用数据",
+      "details": "启用后，仅记录打开侧边栏，以及双击 Shift 打开页内检索。搜索和其他产品操作均不会被记录。",
+      "permissionDenied": "未授予 Google Analytics 访问权限，匿名使用统计仍保持关闭。",
+      "saveFailed": "匿名使用统计设置更新失败。"
+    },
+    "workspace": {
+      "defaultTitle": "默认过期时间",
+      "defaultDescription": "设置新建临时片段可以保留多少天。",
+      "days": "天",
+      "newItemsOnly": "默认天数会用于新建临时片段和快捷延期，不会批量修改已有记录。",
+      "save": "保存默认值",
+      "saving": "正在保存",
+      "saved": "默认过期时间已更新",
+      "invalid": "请输入不小于 1 的整数天数。",
+      "saveFailed": "默认过期时间保存失败。"
+    },
+    "taxonomy": {
+      "loading": "正在加载标签",
+      "loadFailed": "标签加载失败。",
+      "retry": "重试",
+      "archiveNotice": "隐藏只会把标签从之后的新建流程中移除，已有片段仍保留保存时的标签。",
+      "labelPlaceholder": "新增标签…",
+      "labelName": "标签名称",
+      "addLabel": "新增标签",
+      "builtIn": "内置",
+      "hidden": "已隐藏",
+      "noLabels": "暂无标签",
+      "rename": "重命名",
+      "hide": "从新建选项中隐藏",
+      "restore": "恢复到新建选项",
+      "save": "保存名称",
+      "cancel": "取消编辑",
+      "labelCreated": "标签已新增",
+      "labelRestored": "标签已恢复",
+      "labelExists": "该标签已存在",
+      "renamed": "名称已更新",
+      "archived": "已从新建选项中隐藏",
+      "restored": "选项已恢复",
+      "createLabelFailed": "标签新增失败",
+      "renameFailed": "名称更新失败",
+      "visibilityFailed": "选项状态更新失败"
+    },
+    "storage": {
+      "localTitle": "浏览器本地存储",
+      "localDescription": "片段内容与元数据保存在当前扩展的本地 IndexedDB 中。",
+      "active": "使用中",
+      "backupTitle": "本地备份",
+      "backupDescription": "导出或导入 YAML 备份。可以用口令加密，也可以导出可读的明文；明文会包含片段正文、机密信息、完整 URL 和来源元数据。",
+      "exportBackup": "导出备份",
+      "importBackup": "导入备份",
+      "importPreviewTitle": "要替换本地数据吗？",
+      "importReplaceWarning": "导入会完整替换已保存的标签、机密项目和临时库项目。",
+      "importPreferencesUnaffected": "你的 SnippetVault 界面偏好不会被修改。",
+      "backupFormat": "格式版本",
+      "backupExportedAt": "导出时间",
+      "backupLabels": "标签",
+      "backupVaultItems": "机密项目",
+      "backupWorkspaceItems": "临时库项目",
+      "backupExpiredSkipped": "已跳过的过期临时项目",
+      "importReplace": "替换本地数据",
+      "cancel": "取消",
+      "backupExported": "备份已导出",
+      "backupImported": "备份已导入",
+      "backupImportedIndexPending": "数据已成功替换；搜索会从导入的数据重新构建索引。",
+      "backupConflict": "预览后本地数据已发生变化，请重新选择并预览备份。",
+      "backupFileOnly": "请选择 .sv 备份文件。",
+      "backupTooLarge": "备份文件过大。",
+      "backupFailed": "无法完成备份操作。",
+      "noticeTitle": "本地数据可直接读取，建议加密备份",
+      "noticeDescription": "任何能够访问此浏览器 Profile 的人都可以读取片段正文、机密、URL 与来源元数据。未加密的 .sv 文件同样可读，建议导出加密备份并妥善保管。",
+      "exportDialogTitle": "导出备份",
+      "exportDialogDescription": "选择是否使用口令保护备份文件。",
+      "encryptLabel": "使用口令加密（推荐）",
+      "encryptDescription": "使用 AES-256-GCM 加密。忘记口令将无法恢复此备份。",
+      "plaintextWarning": "未加密的备份会以可读 YAML 保存全部片段、机密和来源网址，请妥善保管文件。",
+      "passphrase": "口令",
+      "passphraseConfirm": "确认口令",
+      "passphraseTooShort": "口令至少需要 $1 个字符。",
+      "passphraseMismatch": "两次输入的口令不一致。",
+      "exportConfirm": "导出",
+      "decryptDialogTitle": "输入备份口令",
+      "decryptDialogDescription": "此备份已加密，请输入导出时设置的口令。",
+      "decrypt": "解密",
+      "decryptFailed": "口令错误或文件已损坏。",
+      "invalidEncryptedBackup": "这不是有效的加密备份文件。",
+      "backupEncryption": "加密",
+      "backupEncrypted": "已加密",
+      "backupNotEncrypted": "未加密",
+      "backupExportedEncrypted": "加密备份已导出"
+    },
+    "quickSave": {
+      "title": "快捷保存",
+      "description": "Command/Ctrl+C+C 保存选区的位置。临时库中的记录会自动过期。",
+      "workspace": "临时库",
+      "vault": "机密",
+      "saveFailed": "快捷保存设置保存失败"
+    }
+  },
+  "labels": {
+    "accessKey": "Access Key",
+    "secretKey": "Secret Key",
+    "password": "密码",
+    "note": "备注"
+  },
+  "environments": {
+    "development": "开发",
+    "test": "测试",
+    "staging": "预发布",
+    "production": "生产"
+  },
+  "errors": {
+    "internal": "操作失败，请稍后重试。",
+    "unauthorized": "无法验证消息来源。",
+    "labelLength": "标签名称需要包含 1 至 $1 个字符。",
+    "invalidLabel": "请选择一个有效标签。",
+    "selectionLength": "请选择 1 至 $1 个字符。",
+    "sourceTitleTooLong": "页面标题过长。",
+    "snippetNotFound": "这条片段已不存在。",
+    "snippetConflict": "这条片段已在其他位置更新，请刷新结果后重试。",
+    "expiryFuture": "过期时间必须晚于当前时间。",
+    "backupTooLarge": "备份文件过大，无法安全处理。",
+    "backupConflict": "预览后本地数据已发生变化，请重新预览备份后再替换。",
+    "unsupportedBackup": "不支持此备份版本。",
+    "invalidBackup": "这不是有效的 SnippetVault 备份。",
+    "invalidRequest": "扩展请求无效。",
+    "invalidResponse": "扩展返回了无法识别的响应。",
+    "noResponse": "扩展暂时没有响应，请重试。"
+  },
+  "tooltip": {
+    "suppression": {
+      "pageAction": "在此页面停用",
+      "siteAction": "在此网站停用",
+      "siteUnavailable": "当前页面不支持针对整个网站停用",
+      "pageSaved": "已在此页面停用快捷保存",
+      "siteSaved": "已在此网站停用快捷保存",
+      "undo": "撤销",
+      "restored": "快捷保存已恢复",
+      "saveFailed": "快捷保存例外保存失败",
+      "undoFailed": "快捷保存恢复失败"
+    }
+  },
+  "search": {
+    "refresh": "刷新结果",
+    "input": {
+      "vault": "搜索内容、标签或来源…",
+      "workspace": "搜索临时库…",
+      "tools": "搜索工具…",
+      "clear": "清空搜索"
+    },
+    "dialog": {
+      "title": "检索 SnippetVault",
+      "description": "搜索机密记录或临时库内容",
+      "close": "关闭"
+    },
+    "tabs": {
+      "vault": "机密",
+      "workspace": "临时库",
+      "tools": "工具"
+    },
+    "create": {
+      "open": "新建",
+      "title": "新建片段",
+      "vaultDescription": "直接输入文本或 Markdown，保存到机密。",
+      "workspaceDescription": "保存到临时库，并使用设置中的默认过期时间。",
+      "contentLabel": "内容",
+      "contentPlaceholder": "输入文本或 Markdown…",
+      "contentRequired": "请先输入内容",
+      "labelsLabel": "标签",
+      "labelsHint": "可选；标签能帮助你之后更快找回这条片段。",
+      "workspaceLabelsHint": "可选；需要更方便地找回时再选择标签。",
+      "loadingLabels": "正在加载标签",
+      "labelLoadFailed": "标签加载失败",
+      "labelPlaceholder": "新增标签…",
+      "labelInputLabel": "输入标签名称",
+      "addLabel": "新增标签",
+      "labelRequired": "请输入标签名称",
+      "labelSaveFailed": "标签保存失败",
+      "expandLabels": "展开 $1 个",
+      "collapseLabels": "收起",
+      "retry": "重试",
+      "noLabels": "暂时没有可用标签；你仍然可以直接保存。",
+      "cancel": "取消",
+      "saveAndContinue": "保存并继续",
+      "save": "保存片段",
+      "saving": "正在保存",
+      "saveFailed": "片段保存失败",
+      "saved": "片段已保存",
+      "labelsAutoDetected": "已根据内容格式自动选择标签，点击标签可调整。",
+      "sourceFromPage": "来源：$1",
+      "removeSource": "移除来源"
+    },
+    "edit": {
+      "title": "编辑片段",
+      "vaultDescription": "修改这条记录，不改变它的类型与采集来源。",
+      "workspaceDescription": "修改这条临时记录，并可按需调整过期时间。",
+      "sourcePreserved": "来源保持不变：$1",
+      "labelsHintWithArchived": "这条片段已有的归档标签可以保留或移除；其他归档标签不可选择。",
+      "archivedLabel": "$1 已归档，仅在这条片段中继续可用。",
+      "expiryLabel": "过期时间",
+      "expiryHint": "不修改即可保留原过期时间。",
+      "expiryInvalid": "请选择晚于当前时间的日期和时间。",
+      "save": "保存修改",
+      "saving": "正在保存修改",
+      "saveFailed": "修改保存失败",
+      "saved": "修改已保存",
+      "conflict": "这条片段已发生变化",
+      "conflictDescription": "请刷新结果，重新打开这条片段后再应用修改。",
+      "notFound": "这条片段已不存在"
+    },
+    "filters": {
+      "label": "标签",
+      "clearLabel": "清除标签筛选"
+    },
+    "results": {
+      "listLabel": "检索结果",
+      "failed": "检索失败",
+      "retry": "重试",
+      "noMatches": "没有匹配结果",
+      "noRecords": "这里还没有记录",
+      "vaultEmpty": "保存的网页选区会出现在这里。",
+      "workspaceEmpty": "临时保存的内容会在到期或转为机密前显示在这里。",
+      "groupCount": "$1 条",
+      "loading": "正在检索",
+      "unknownSource": "未记录来源",
+      "pinned": "已固定",
+      "expires": "到期 $1",
+      "updated": "更新 $1",
+      "imageAlt": "图片替代文本",
+      "copy": "复制内容",
+      "copied": "已复制",
+      "expand": "展开",
+      "collapse": "收起",
+      "copyFailed": "内容复制失败",
+      "edit": "编辑",
+      "delete": "删除",
+      "deleted": "片段已删除",
+      "deleteFailed": "片段删除失败",
+      "deleteConfirm": "此操作不可撤销，该条目将被永久删除。",
+      "deleteCancel": "取消",
+      "extendByDays": "延期 +$1 天",
+      "extendFailed": "延期失败",
+      "extended": "过期时间已延期",
+      "extendedDescription": "新的到期时间：$1（+ $2 天）",
+      "promote": "转为机密",
+      "promoteFailed": "转为机密失败",
+      "promoted": "已转为机密",
+      "workspaceConflict": "这条临时记录已发生变化",
+      "workspaceConflictDescription": "请刷新结果后再试一次。",
+      "workspaceNotFound": "这条临时记录已不存在",
+      "workspaceNotFoundDescription": "请刷新结果以加载最新的临时记录。",
+      "openLink": "打开链接"
+    },
+    "status": {
+      "indexRebuild": "搜索索引正在等待恢复，结果会自动重建。",
+      "labelOrderStale": "标签使用排序稍后更新。"
+    },
+    "pagination": {
+      "total": "$1 条记录",
+      "label": "检索结果分页",
+      "previous": "上一页",
+      "next": "下一页",
+      "page": "第 $1 页"
+    },
+    "stashPage": "暂存当前页",
+    "scopes": {
+      "label": "范围"
+    },
+    "preview": {
+      "source": "来源",
+      "labels": "标签",
+      "expires": "到期",
+      "updated": "更新",
+      "created": "创建",
+      "filterByLabel": "按此标签筛选"
+    },
+    "actions": {
+      "label": "操作",
+      "copy": "复制",
+      "copyAs": "复制为",
+      "groupItem": "当前条目",
+      "groupTemporary": "临时片段",
+      "groupGeneral": "通用",
+      "newSecret": "新建机密",
+      "newTemporary": "新建临时片段",
+      "openJsonTool": "打开 JSON 工具",
+      "confirmDelete": "再次选择以确认删除"
+    },
+    "hints": {
+      "open": "打开",
+      "navigate": "选择"
+    },
+    "footer": {
+      "count": "$1 条",
+      "new": "新建",
+      "settings": "设置"
+    },
+    "copyFormats": {
+      "open": "按格式复制…",
+      "name": "名称",
+      "namePlaceholder": "名称（可选）",
+      "shellExport": "Shell export",
+      "dotenv": ".env",
+      "jsonField": "JSON 字段",
+      "httpHeader": "HTTP Header",
+      "errors": {
+        "invalidVariableName": "名称只能包含字母、数字和下划线，且不能以数字开头。",
+        "invalidShellValue": "该值无法用作 Shell 变量。",
+        "invalidDotenvValue": "该值同时包含所有引号类型，无法安全写入 .env。",
+        "invalidHeaderName": "不是合法的 HTTP Header 名称。",
+        "invalidHeaderValue": "HTTP Header 的值不能包含换行。"
+      }
+    }
+  },
+  "quickSave": {
+    "savedWorkspace": "已保存到临时库",
+    "savedVault": "已保存到机密",
+    "expiresIn": "$1 天后过期",
+    "duplicate": "已保存过",
+    "duplicateWorkspace": "临时库中已有相同内容。",
+    "duplicateVault": "机密中已有相同内容。",
+    "undo": "撤销",
+    "undone": "已撤销保存",
+    "undoFailed": "撤销失败",
+    "promote": "转为机密",
+    "promoted": "已转为机密",
+    "promoteFailed": "转为机密失败",
+    "more": "更多",
+    "saveFailed": "选区保存失败",
+    "savedPage": "已暂存当前页",
+    "pageExtended": "已存在，已延长有效期"
+  },
+  "tools": {
+    "json": {
+      "title": "JSON 工具",
+      "description": "在独立标签页中格式化、压缩和去转义 JSON。数字精度不变，内容不会被保存。",
+      "format": "格式化",
+      "minify": "压缩",
+      "unescape": "去转义",
+      "copy": "复制结果",
+      "clear": "清空",
+      "copied": "已复制",
+      "input": "JSON 输入",
+      "output": "结果",
+      "inputPlaceholder": "粘贴 JSON 或转义后的 JSON 字符串…",
+      "outputPlaceholder": "结果显示在这里",
+      "processing": "处理中…",
+      "errors": {
+        "empty": "请先输入 JSON。",
+        "tooLarge": "输入超过 10 MB，无法处理。",
+        "outputTooLarge": "格式化结果过大（嵌套过深），可改用「压缩」。",
+        "invalidJson": "不是合法的 JSON。",
+        "invalidJsonAt": "JSON 不合法：第 $1 行第 $2 列",
+        "notStringLiteral": "不是合法的 JSON 字符串字面量，未执行去转义。",
+        "copyFailed": "无法复制到剪贴板。"
+      }
+    }
+  },
+  "onboarding": {
+    "title": "欢迎使用 SnippetVault",
+    "done": "知道了",
+    "secrets": {
+      "title": "机密",
+      "description": "Token、API Key 及需要长期保存的内容。仅保存在本机，未加密。"
+    },
+    "temporary": {
+      "title": "临时库",
+      "description": "短期使用的片段与链接。快捷保存默认存入这里，默认 7 天后过期。"
+    },
+    "tools": {
+      "title": "工具",
+      "description": "JSON 工具等实用工具，在独立标签页中打开。"
+    },
+    "shortcuts": {
+      "quickSave": "保存选区；未选中内容时暂存当前页",
+      "search": "打开检索（也可使用 Ctrl/⌘+Shift+K）"
+    }
+  }
+}

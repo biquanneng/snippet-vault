@@ -1,0 +1,31 @@
+{
+  "name": "snippet-vault-media",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MPL-2.0",
+  "type": "module",
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=10 <11"
+  },
+  "scripts": {
+    "studio": "remotion studio src/index.ts --no-open",
+    "typecheck": "tsc --noEmit",
+    "preview:store": "remotion still src/index.ts Store-EN-01-Search output/previews/store-en-01-search.png",
+    "render:store": "node scripts/render-store.mjs",
+    "verify:store": "node scripts/verify-store.mjs",
+    "render:all": "pnpm render:store && pnpm verify:store"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.496",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "remotion": "4.0.496"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3"
+  }
+}
