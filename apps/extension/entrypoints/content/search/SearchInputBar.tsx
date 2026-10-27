@@ -1,158 +1,133 @@
 // SPDX-License-Identifier: MPL-2.0
 
-import { forwardRef } from 'react';
-import { Search, X } from 'lucide-react';
+import { forwardRef, type KeyboardEvent } from 'react';
+import { LoaderCircle, Search, X } from 'lucide-react';
 
-import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-import { Kbd } from '../../../components/ui/kbd';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '../../../components/ui/tooltip';
-import {
-  MAX_SEARCH_QUERY_LENGTH,
-  type SearchPanelKind,
-} from '../../../lib/browser/message-contract';
+import { MAX_SEARCH_QUERY_LENGTH } from '../../../lib/browser/message-contract';
 import { useI18n } from '../../../lib/use-i18n';
+import { cn } from '../../../lib/utils';
+
+export type PanelScope = 'vault' | 'workspace' | 'tools';
+
+export const PANEL_SCOPES: readonly PanelScope[] = ['vault', 'workspace', 'tools'];
 
 interface SearchInputBarProps {
-  disabled?: boolean;
-  kind: SearchPanelKind;
+  scope: PanelScope;
   query: string;
+  placeholder: string;
+  loading: boolean;
+  labelFilter?: string;
   activeDescendantId?: string;
-  hasActiveResult?: boolean;
-  portalContainer?: HTMLElement;
-  resultsAvailable?: boolean;
   resultsId?: string;
-  resultActionsEnabled?: boolean;
-  onClear: () => void;
-  onNavigateResults?: (direction: -1 | 1) => void;
-  onOpenSelectedResult?: () => void;
-  onSelectResultPrimaryAction?: () => void;
+  onScopeChange: (scope: PanelScope) => void;
   onQueryChange: (query: string) => void;
-  onSearch: (query: string) => void;
+  onCompositionChange: (composing: boolean) => void;
+  onClearLabelFilter: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 }
 
-export const SearchInputBar = forwardRef<
-  HTMLInputElement,
-  SearchInputBarProps
->(function SearchInputBar(
-  {
-    disabled = false,
-    kind,
-    query,
-    activeDescendantId,
-    hasActiveResult = false,
-    portalContainer,
-    resultsAvailable = false,
-    resultsId,
-    resultActionsEnabled = false,
-    onClear,
-    onNavigateResults,
-    onOpenSelectedResult,
-    onSelectResultPrimaryAction,
-    onQueryChange,
-    onSearch,
-  },
-  ref,
-) {
-  const { t } = useI18n();
-  const placeholder =
-    kind === 'vault'
-      ? t('search.input.vault')
-      : t('search.input.workspace');
+/** The search field is the panel's hero; scopes sit inside the same row. */
+export const SearchInputBar = forwardRef<HTMLInputElement, SearchInputBarProps>(
+  function SearchInputBar(
+    {
+      scope,
+      query,
+      placeholder,
+      loading,
+      labelFilter,
+      activeDescendantId,
+      resultsId,
+      onScopeChange,
+      onQueryChange,
+      onCompositionChange,
+      onClearLabelFilter,
+      onKeyDown,
+    },
+    ref,
+  ) {
+    const { t } = useI18n();
+    const scopeLabels: Record<PanelScope, string> = {
+      vault: t('search.tabs.vault'),
+      workspace: t('search.tabs.workspace'),
+      tools: t('search.tabs.tools'),
+    };
 
-  return (
-    <div className="relative flex h-14 items-center">
-      <Search
-        className="pointer-events-none absolute left-0 size-5 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <Input
-        ref={ref}
-        className="h-14 rounded-none border-0 bg-transparent pr-20 pl-8 text-base shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 disabled:bg-transparent md:text-base dark:bg-transparent dark:disabled:bg-transparent"
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing) {
-            return;
-          }
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            if (!resultActionsEnabled) {
-              return;
-            }
-            event.preventDefault();
-            onNavigateResults?.(event.key === 'ArrowDown' ? 1 : -1);
-            return;
-          }
-          if (event.key !== 'Enter') {
-            return;
-          }
-          if (hasActiveResult && resultActionsEnabled) {
-            event.preventDefault();
-            if (event.metaKey || event.ctrlKey) {
-              onOpenSelectedResult?.();
-              return;
-            }
-            if (!event.altKey && !event.shiftKey) {
-              onSelectResultPrimaryAction?.();
-            }
-            return;
-          }
-          if (event.metaKey || event.ctrlKey || event.altKey) {
-            return;
-          }
-          event.preventDefault();
-          onSearch(event.currentTarget.value);
-        }}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        role="combobox"
-        aria-autocomplete="none"
-        aria-controls={resultsId}
-        aria-expanded={resultsAvailable}
-        aria-activedescendant={activeDescendantId}
-        disabled={disabled}
-        maxLength={MAX_SEARCH_QUERY_LENGTH}
-        autoComplete="off"
-        spellCheck={false}
-        // Remounts when the snippet form closes; focus returns to search.
-        autoFocus
-      />
-      {!query ? (
-        <span className="pointer-events-none absolute right-2 flex items-center gap-1">
-          <Kbd>Enter</Kbd>
-        </span>
-      ) : null}
-      {query ? (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="absolute right-1 text-muted-foreground hover:text-foreground"
-                disabled={disabled}
-                onClick={onClear}
-                aria-label={t('search.input.clear')}
-              >
-                <X aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent
-              portalContainer={portalContainer}
-              side="top"
-              sideOffset={4}
+    return (
+      <div className="flex h-16 shrink-0 items-center gap-3 border-b px-5">
+        {loading ? (
+          <LoaderCircle
+            className="size-4.5 shrink-0 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
+        ) : (
+          <Search
+            className="size-4.5 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+        )}
+        {labelFilter ? (
+          <button
+            type="button"
+            onClick={onClearLabelFilter}
+            aria-label={t('search.filters.clearLabel')}
+            title={t('search.filters.clearLabel')}
+            className="flex shrink-0 items-center gap-1 rounded-md bg-muted px-1.5 text-xs leading-6 hover:bg-accent"
+          >
+            {labelFilter}
+            <X className="size-3" aria-hidden="true" />
+          </button>
+        ) : null}
+        <Input
+          ref={ref}
+          className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 text-base shadow-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 md:text-base dark:bg-transparent"
+          value={query}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-controls={resultsId}
+          aria-expanded={Boolean(resultsId)}
+          aria-activedescendant={activeDescendantId}
+          maxLength={MAX_SEARCH_QUERY_LENGTH}
+          autoComplete="off"
+          spellCheck={false}
+          // Remounts when the snippet form closes; focus returns to search.
+          autoFocus
+          onChange={(event) => onQueryChange(event.target.value)}
+          onCompositionStart={() => onCompositionChange(true)}
+          onCompositionEnd={(event) => {
+            onCompositionChange(false);
+            onQueryChange(event.currentTarget.value);
+          }}
+          onKeyDown={onKeyDown}
+        />
+        <div
+          role="tablist"
+          aria-label={t('search.scopes.label')}
+          className="flex shrink-0 items-center rounded-lg bg-muted p-0.5"
+        >
+          {PANEL_SCOPES.map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              role="tab"
+              tabIndex={-1}
+              aria-selected={scope === candidate}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onScopeChange(candidate)}
+              className={cn(
+                'rounded-md px-3 text-xs leading-7 font-medium transition-colors',
+                scope === candidate
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
             >
-              {t('search.input.clear')}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : null}
-    </div>
-  );
-});
+              {scopeLabels[candidate]}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  },
+);

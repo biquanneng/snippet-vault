@@ -1,293 +1,194 @@
 // SPDX-License-Identifier: MPL-2.0
 
-import { useEffect, useMemo, useRef } from 'react';
-import { AlertCircle, SearchX } from 'lucide-react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { AlertCircle } from 'lucide-react';
 
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from '../../../components/ui/alert';
 import { Button } from '../../../components/ui/button';
 import type {
   LabelSummary,
-  SearchPanelData,
   SearchPanelItem,
-  SearchPanelKind,
 } from '../../../lib/browser/message-contract';
-import { toIntlLocale } from '../../../lib/i18n-catalog';
 import { useI18n } from '../../../lib/use-i18n';
 import { HighlightedText } from './HighlightedText';
-import { groupVaultItemsByDomain } from './result-groups';
-import { SearchPagination } from './SearchPagination';
-import { SearchResultItem } from './SearchResultItem';
+import { SearchResultPreview } from './SearchResultPreview';
+import { SearchResultRow } from './SearchResultRow';
 import { getSearchResultOptionId } from './search-result-selection';
 
+export interface ResultSection {
+  /** Domain heading for grouped Secrets results; omitted for flat lists. */
+  title?: string;
+  items: SearchPanelItem[];
+}
+
 interface SearchPanelResultsProps {
-  data: SearchPanelData | null;
+  sections: readonly ResultSection[];
   error: string | null;
-  kind: SearchPanelKind;
-  loading: boolean;
-  portalContainer?: HTMLElement;
+  /** True only while there is nothing to show yet. */
+  initialLoading: boolean;
+  hasMore: boolean;
   query: string;
   resultsId: string;
-  selectedItemId?: string;
+  selectedItem?: SearchPanelItem;
   selectedLabelId?: string;
-  workspaceActionState: {
-    action: 'extend' | 'promote';
-    itemId: string;
-  } | null;
-  workspaceExpiryDays: number;
-  workspaceLifecycleActionsEnabled: boolean;
-  onDelete: (item: SearchPanelItem) => void;
-  onEdit: (item: SearchPanelItem) => void;
-  onExtendWorkspaceItem: (item: SearchPanelItem) => void;
+  emptyState: ReactNode;
+  formatDateTime: (timestamp: number) => string;
+  formatRelative: (item: SearchPanelItem) => string;
+  onActivate: (item: SearchPanelItem) => void;
+  onCopy: (item: SearchPanelItem) => Promise<boolean>;
   onLabelFilterToggle: (label: LabelSummary) => void;
-  onPageChange: (page: number) => void;
-  onPromoteWorkspaceItem: (item: SearchPanelItem) => void;
+  onLoadMore: () => void;
   onRetry: () => void;
-  onSelectedItemChange: (itemId: string | undefined) => void;
+  onSelect: (item: SearchPanelItem) => void;
 }
 
 export function SearchPanelResults({
-  data,
+  sections,
   error,
-  kind,
-  loading,
-  portalContainer,
+  initialLoading,
+  hasMore,
   query,
   resultsId,
-  selectedItemId,
+  selectedItem,
   selectedLabelId,
-  workspaceActionState,
-  workspaceExpiryDays,
-  workspaceLifecycleActionsEnabled,
-  onDelete,
-  onEdit,
-  onExtendWorkspaceItem,
+  emptyState,
+  formatDateTime,
+  formatRelative,
+  onActivate,
+  onCopy,
   onLabelFilterToggle,
-  onPageChange,
-  onPromoteWorkspaceItem,
+  onLoadMore,
   onRetry,
-  onSelectedItemChange,
+  onSelect,
 }: SearchPanelResultsProps) {
   const { t } = useI18n();
-  const itemRefs = useRef<Record<string, HTMLLIElement | null>>({});
+  const listRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const onLoadMoreRef = useRef(onLoadMore);
+  onLoadMoreRef.current = onLoadMore;
 
   useEffect(() => {
-    if (!selectedItemId) {
+    if (!selectedItem) {
       return;
     }
-    itemRefs.current[selectedItemId]?.scrollIntoView({
-      block: 'nearest',
-    });
-  }, [selectedItemId]);
+    listRef.current
+      ?.querySelector(`#${CSS.escape(getSearchResultOptionId(resultsId, selectedItem.id))}`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [resultsId, selectedItem]);
 
-  if (loading) {
-    return (
-      <SearchResultsSkeleton label={t('search.results.loading')} />
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!hasMore || !sentinel) {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onLoadMoreRef.current();
+        }
+      },
+      { root: listRef.current, rootMargin: '120px' },
     );
-  }
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, sections]);
 
   if (error) {
     return (
-      <div className="p-4">
-        <Alert variant="destructive">
-          <AlertCircle aria-hidden="true" />
-          <AlertTitle>{t('search.results.failed')}</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-          <AlertAction>
-            <Button variant="secondary" size="xs" onClick={onRetry}>
-              {t('search.results.retry')}
-            </Button>
-          </AlertAction>
-        </Alert>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <AlertCircle className="size-5 text-destructive" aria-hidden="true" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium">{t('search.results.failed')}</p>
+          <p className="text-xs text-muted-foreground">{error}</p>
+        </div>
+        <Button variant="secondary" size="sm" onClick={onRetry}>
+          {t('search.results.retry')}
+        </Button>
       </div>
     );
   }
 
-  if (!data) {
-    return null;
+  if (initialLoading) {
+    return <ResultsSkeleton label={t('search.results.loading')} />;
   }
 
-  if (data.items.length === 0) {
+  if (sections.every((section) => section.items.length === 0)) {
     return (
-      <div className="m-3 flex min-h-48 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-        <span className="mb-1 flex size-9 items-center justify-center rounded-full bg-muted">
-          <SearchX className="size-4 text-muted-foreground" aria-hidden="true" />
-        </span>
-        <p className="text-sm font-medium">
-          {query
-            ? t('search.results.noMatches')
-            : t('search.results.noRecords')}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {kind === 'vault'
-            ? t('search.results.vaultEmpty')
-            : t('search.results.workspaceEmpty')}
-        </p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-1.5 p-6 text-center">
+        {emptyState}
       </div>
     );
   }
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1">
       <div
+        ref={listRef}
         id={resultsId}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2"
         role="listbox"
         aria-label={t('search.results.listLabel')}
+        className="min-h-0 w-full overflow-y-auto overscroll-contain bg-surface p-2.5 sm:w-[46%] sm:shrink-0"
       >
-        {kind === 'vault' && query ? (
-          <VaultResults
-            data={data}
-            portalContainer={portalContainer}
-            query={query}
-            resultsId={resultsId}
-            itemRefs={itemRefs.current}
-            selectedItemId={selectedItemId}
-            selectedLabelId={selectedLabelId}
-            onDelete={onDelete}
-            onEdit={onEdit}
-            onLabelFilterToggle={onLabelFilterToggle}
-            onSelectedItemChange={onSelectedItemChange}
-          />
-        ) : (
-          <ul className="divide-y bg-background" role="presentation">
-            {data.items.map((item) => (
-              <SearchResultItem
+        {sections.map((section, index) => (
+          <ul
+            key={section.title ?? index}
+            role="group"
+            aria-label={section.title}
+            className={index > 0 ? 'mt-4' : undefined}
+          >
+            {section.title ? (
+              <li
+                role="presentation"
+                className="truncate px-3 pt-1 pb-1.5 font-mono text-xs text-muted-foreground"
+              >
+                <HighlightedText text={section.title} query={query} />
+              </li>
+            ) : null}
+            {section.items.map((item) => (
+              <SearchResultRow
                 key={item.id}
-                item={item}
-                portalContainer={portalContainer}
-                query={query}
                 domId={getSearchResultOptionId(resultsId, item.id)}
-                selected={selectedItemId === item.id}
-                selectedLabelId={selectedLabelId}
-                workspaceActionState={workspaceActionState}
-                workspaceExpiryDays={workspaceExpiryDays}
-                workspaceLifecycleActionsEnabled={
-                  workspaceLifecycleActionsEnabled
-                }
-                onDelete={onDelete}
-                onEdit={onEdit}
-                onExtendWorkspaceItem={onExtendWorkspaceItem}
-                onLabelFilterToggle={onLabelFilterToggle}
-                onPromoteWorkspaceItem={onPromoteWorkspaceItem}
-                onSelect={onSelectedItemChange}
-                listItemRef={(node) => {
-                  itemRefs.current[item.id] = node;
-                }}
+                item={item}
+                query={query}
+                selected={selectedItem?.id === item.id}
+                relativeTime={formatRelative(item)}
+                onSelect={() => onSelect(item)}
+                onActivate={() => onActivate(item)}
               />
             ))}
           </ul>
-        )}
+        ))}
+        {hasMore ? <div ref={sentinelRef} className="h-px" /> : null}
       </div>
-      {data.pagination ? (
-        <SearchPagination
-          pagination={data.pagination}
-          onPageChange={onPageChange}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function VaultResults({
-  data,
-  itemRefs,
-  portalContainer,
-  query,
-  resultsId,
-  selectedItemId,
-  selectedLabelId,
-  onDelete,
-  onEdit,
-  onLabelFilterToggle,
-  onSelectedItemChange,
-}: {
-  data: SearchPanelData;
-  itemRefs: Record<string, HTMLLIElement | null>;
-  portalContainer?: HTMLElement;
-  query: string;
-  resultsId: string;
-  selectedItemId?: string;
-  selectedLabelId?: string;
-  onDelete: (item: SearchPanelItem) => void;
-  onEdit: (item: SearchPanelItem) => void;
-  onLabelFilterToggle: (label: LabelSummary) => void;
-  onSelectedItemChange: (itemId: string | undefined) => void;
-}) {
-  const { locale, t } = useI18n();
-  const numberFormatter = useMemo(
-    () => new Intl.NumberFormat(toIntlLocale(locale)),
-    [locale],
-  );
-  const groups = groupVaultItemsByDomain(
-    data.items,
-    t('search.results.unknownSource'),
-  );
-
-  return (
-    <div className="space-y-5">
-      {groups.map((group) => (
-        <section
-          key={group.domain}
-          aria-label={group.domain}
-          role="group"
-        >
-          <div className="flex items-center gap-2 px-3 pb-1">
-            <h2 className="min-w-0 truncate font-mono text-xs font-medium text-muted-foreground">
-              <HighlightedText text={group.domain} query={query} />
-            </h2>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {t(
-                'search.results.groupCount',
-                [numberFormatter.format(group.items.length)],
-                group.items.length,
-              )}
-            </span>
-          </div>
-          <ul className="divide-y bg-background" role="presentation">
-            {group.items.map((item) => (
-              <SearchResultItem
-                key={item.id}
-                item={item}
-                portalContainer={portalContainer}
-                query={query}
-                domId={getSearchResultOptionId(resultsId, item.id)}
-                selected={selectedItemId === item.id}
-                selectedLabelId={selectedLabelId}
-                onDelete={onDelete}
-                onEdit={onEdit}
-                onLabelFilterToggle={onLabelFilterToggle}
-                onSelect={onSelectedItemChange}
-                listItemRef={(node) => {
-                  itemRefs[item.id] = node;
-                }}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
+      <div className="hidden min-w-0 flex-1 sm:flex">
+        {selectedItem ? (
+          <SearchResultPreview
+            key={selectedItem.id}
+            item={selectedItem}
+            query={query}
+            selectedLabelId={selectedLabelId}
+            formatDateTime={formatDateTime}
+            onCopy={() => onCopy(selectedItem)}
+            onLabelFilterToggle={onLabelFilterToggle}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function SearchResultsSkeleton({ label }: { label: string }) {
+function ResultsSkeleton({ label }: { label: string }) {
   return (
     <div
-      className="flex-1 space-y-6 overflow-hidden p-3"
+      className="flex-1 space-y-1 bg-surface p-2.5 sm:w-[46%]"
       aria-label={label}
       aria-live="polite"
     >
-      {[0, 1].map((group) => (
-        <div key={group} className="space-y-3" aria-hidden="true">
-          <div className="h-3 w-1/4 animate-pulse rounded bg-muted" />
-          <div className="space-y-3 px-3">
-            <div className="h-3 w-2/5 animate-pulse rounded bg-muted" />
+      {[0, 1, 2, 3].map((row) => (
+        <div key={row} className="flex items-center gap-3 px-3 py-2" aria-hidden="true">
+          <div className="size-8 animate-pulse rounded-md bg-muted" />
+          <div className="flex-1 space-y-1.5">
             <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
+            <div className="h-2.5 w-1/3 animate-pulse rounded bg-muted" />
           </div>
         </div>
       ))}

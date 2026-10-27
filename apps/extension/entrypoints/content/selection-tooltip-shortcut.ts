@@ -15,7 +15,7 @@ export interface SelectionTooltipSelectionIdentity {
   startOffset: number;
   endContainer: unknown;
   endOffset: number;
-  markdown: string;
+  text: string;
 }
 
 export type SelectionTooltipShortcutPlatform = "macos" | "windows-linux";
@@ -107,6 +107,6 @@ function areSelectionTooltipSelectionsEqual(
     left.startOffset === right.startOffset &&
     left.endContainer === right.endContainer &&
     left.endOffset === right.endOffset &&
-    left.markdown === right.markdown
+    left.text === right.text
   );
 }

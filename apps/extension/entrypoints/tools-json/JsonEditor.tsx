@@ -32,7 +32,11 @@ const editorTheme = EditorView.theme({
     fontSize: '13px',
   },
   '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.6' },
+  '.cm-scroller': {
+    fontFamily: 'var(--font-mono)',
+    fontVariantLigatures: 'none',
+    lineHeight: '1.6',
+  },
   '.cm-content': { caretColor: 'var(--foreground)' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--foreground)' },
   '.cm-gutters': {

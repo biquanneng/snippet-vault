@@ -6,7 +6,7 @@ import 'sonner/dist/styles.css';
 
 import { DevAgentation } from '../../components/dev/DevAgentation';
 import { trackAnalyticsEvent } from '../../lib/analytics';
-import { registerBrandFont } from '../../lib/brand-font';
+import { registerBrandFonts } from '../../lib/brand-font';
 import { openSidePanel } from '../../lib/analytics-events';
 import { initializeLanguage } from '../../lib/i18n';
 import {
@@ -18,7 +18,7 @@ import './style.css';
 import { App } from './App';
 
 async function mountApp() {
-  registerBrandFont();
+  registerBrandFonts();
   applyThemeToElement(
     document.documentElement,
     getThemeSnapshot(),

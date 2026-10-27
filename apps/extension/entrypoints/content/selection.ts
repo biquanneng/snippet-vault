@@ -1,28 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import { MAX_SELECTION_LENGTH } from '../../lib/browser/message-contract';
-import { selectionFragmentToMarkdown } from './selection-markdown';
-
-const SELECTION_CONTEXT_BOUNDARIES = new Set([
-  'article',
-  'aside',
-  'blockquote',
-  'body',
-  'details',
-  'div',
-  'figcaption',
-  'figure',
-  'footer',
-  'header',
-  'main',
-  'nav',
-  'ol',
-  'p',
-  'pre',
-  'section',
-  'table',
-  'ul',
-]);
 
 export interface SelectionBox {
   left: number;
@@ -37,7 +15,7 @@ export interface ViewportSize {
 }
 
 export interface SelectionSnapshot {
-  markdown: string;
+  text: string;
   box: SelectionBox;
 }
 
@@ -63,7 +41,7 @@ export function normalizeSelectedText(text: string): string | null {
   if (!text.trim() || text.length > MAX_SELECTION_LENGTH) {
     return null;
   }
-  return text;
+  return text.trim();
 }
 
 export function isKeyboardSelectionEvent(
@@ -81,34 +59,24 @@ export function isKeyboardSelectionEvent(
 
 export function readSelectionSnapshot(
   selection: Selection | null = window.getSelection(),
-  baseUrl: string = document.baseURI,
 ): SelectionSnapshot | null {
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
     return null;
   }
 
-  if (!normalizeSelectedText(selection.toString())) {
+  const text = normalizeSelectedText(selection.toString());
+  if (!text) {
     return null;
   }
 
   const range = selection.getRangeAt(0);
-  const markdown = normalizeSelectedText(
-    selectionFragmentToMarkdown(
-      cloneRangeContentsWithContext(range),
-      baseUrl,
-    ),
-  );
-  if (!markdown) {
-    return null;
-  }
-
   const box = getRangeSelectionBox(range);
   if (!box) {
     return null;
   }
 
   return {
-    markdown,
+    text,
     box,
   };
 }
@@ -140,34 +108,6 @@ export function isSelectionBoxVisible(
     box.bottom >= 0 &&
     box.top <= viewport.height
   );
-}
-
-export function cloneRangeContentsWithContext(
-  range: Range,
-): DocumentFragment {
-  const ownerDocument = range.startContainer.ownerDocument ?? document;
-  const output = ownerDocument.createDocumentFragment();
-  let content: Node = range.cloneContents();
-  let context =
-    range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
-      ? (range.commonAncestorContainer as Element)
-      : range.commonAncestorContainer.parentElement;
-
-  while (context && context.localName !== 'html') {
-    const wrapper = context.cloneNode(false) as Element;
-    wrapper.append(content);
-    content = wrapper;
-    if (
-      SELECTION_CONTEXT_BOUNDARIES.has(context.localName) ||
-      /^h[1-6]$/.test(context.localName)
-    ) {
-      break;
-    }
-    context = context.parentElement;
-  }
-
-  output.append(content);
-  return output;
 }
 
 export function isEditableTarget(target: EventTarget | null): boolean {
@@ -232,15 +172,14 @@ export function readTextControlSnapshot(
     return null;
   }
 
-  // Control values are plain text, which is already valid Markdown.
-  const markdown = normalizeSelectedText(control.value.slice(start, end));
-  if (!markdown) {
+  const text = normalizeSelectedText(control.value.slice(start, end));
+  if (!text) {
     return null;
   }
 
   const { left, right, top, bottom } = control.getBoundingClientRect();
   return {
-    markdown,
+    text,
     box: { left, right, top, bottom },
     start,
     end,

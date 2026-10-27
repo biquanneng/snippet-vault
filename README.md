@@ -126,26 +126,29 @@ Press `Shift` twice within 400ms to open the search modal. Double `Shift` is
 ignored while typing in an input, textarea, or rich-text editor. If a site
 captures the keyboard, press `Ctrl+Shift+K` (`Command+Shift+K` on macOS), or
 assign another key under `chrome://extensions/shortcuts`; it opens the same
-panel as the toolbar icon. The **Secrets** tab
-groups records by source domain; **Temporary** keeps active temporary records
-in a flat list. Press `Enter` to submit a query; typing alone does not search.
+panel as the toolbar icon. The panel is a keyboard-first command palette: an
+inline **Secrets | Temporary | Tools** scope switcher (`Tab` cycles it), a
+result list with a preview of the selected record, and a shortcut hint bar.
+Results update as you type, and the first result is selected by default.
+Press `Enter` to copy the selection and close the panel, `Command/Ctrl+Enter`
+to edit it (a stashed link record opens in a new tab instead), or
+`Command/Ctrl+K` for the action menu. The **Secrets** scope groups records by
+source domain; **Temporary** keeps active records in a flat list. Lists load
+the next 30 records automatically as you scroll instead of using pagination.
 Saved Markdown is rendered as a readable, safe React view, and matched terms
-are highlighted after authoritative records are loaded. Empty searches can be
-paged independently in either tab; records from the current site are listed
-first. Use **New** to save manually entered text or
-Markdown with optional labels. Labels are preselected from the content format
-until you choose labels yourself, and they are optional for both Secrets and
-Temporary records. The active tab decides whether the record is
-permanent or expires from Temporary. A new record captures the
-title and URL of the web page you are on as its source; you can remove it
-before saving, and restricted pages provide no source. Use the refresh button
-next to **New** to reload the current result set without changing the active
-tab or query.
+are highlighted after authoritative records are loaded. Use **New** to save
+manually entered text or Markdown with optional labels. Labels are preselected
+from the content format until you choose labels yourself, and they are
+optional for both Secrets and Temporary records. The active scope decides
+whether the record is permanent or expires from Temporary. A new record
+captures the title and URL of the web page you are on as its source; you can
+remove it before saving, and restricted pages provide no source.
 
-Each result copies its raw content with one click. **Copy as…** wraps it as a
-shell `export`, a `.env` line, a JSON field, or an HTTP header, escaping the
-value and rejecting header values that contain line breaks. Converted text is
-only copied, never saved.
+`Enter` copies the selected result's raw content. The action menu
+(`Command/Ctrl+K`) also offers **Copy as…**, which wraps it as a shell
+`export`, a `.env` line, a JSON field, or an HTTP header, escaping the value
+and rejecting header values that contain line breaks. Converted text is only
+copied, never saved.
 
 The **Tools** tab, after **Temporary**, lists the extension's tools; the side
 panel has the same **Tools** entry. The JSON tool opens in its own extension
@@ -178,9 +181,9 @@ SnippetVault follows the operating-system theme by default. Use the theme
 control in side panel settings to choose light or dark explicitly. Theme changes
 stay local to the extension UI and never restyle the current website.
 
-The first time the search panel opens, a short guide explains Secrets,
-Temporary, Tools, and the two shortcuts. Reopen it from **Getting started** in
-the side panel.
+Right after install, a welcome page opens in a new tab with a short guide to
+Secrets, Temporary, Tools, and the two shortcuts. Reopen it from
+**Getting started** in the side panel.
 
 Side panel settings are organized into **General**, **Labels**, and
 **Storage**. **General** holds the theme, language, quick save target, quick

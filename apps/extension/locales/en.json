@@ -237,6 +237,7 @@
     "input": {
       "vault": "Search content, labels, or source…",
       "workspace": "Search Temporary…",
+      "tools": "Search tools…",
       "clear": "Clear search"
     },
     "dialog": {
@@ -354,6 +355,38 @@
       "page": "Page $1"
     },
     "stashPage": "Stash this page",
+    "scopes": {
+      "label": "Scope"
+    },
+    "preview": {
+      "source": "Source",
+      "labels": "Labels",
+      "expires": "Expires",
+      "updated": "Updated",
+      "created": "Created",
+      "filterByLabel": "Filter by this label"
+    },
+    "actions": {
+      "label": "Actions",
+      "copy": "Copy",
+      "copyAs": "Copy as",
+      "groupItem": "Selected",
+      "groupTemporary": "Temporary",
+      "groupGeneral": "General",
+      "newSecret": "New secret",
+      "newTemporary": "New temporary snippet",
+      "openJsonTool": "Open JSON tool",
+      "confirmDelete": "Select again to delete"
+    },
+    "hints": {
+      "open": "Open",
+      "navigate": "Select"
+    },
+    "footer": {
+      "count": "$1 item | $1 items",
+      "new": "New",
+      "settings": "Settings"
+    },
     "copyFormats": {
       "open": "Copy as…",
       "name": "Name",
@@ -392,6 +425,7 @@
   "tools": {
     "json": {
       "title": "JSON Tool",
+      "description": "Format, minify, and unescape JSON in its own tab. Numbers keep every digit, and nothing is saved.",
       "format": "Format",
       "minify": "Minify",
       "unescape": "Unescape",

@@ -3,7 +3,7 @@
 import ReactDOM from "react-dom/client";
 
 import "./content/style.css";
-import { registerBrandFont } from "../lib/brand-font";
+import { registerBrandFonts } from "../lib/brand-font";
 import { registerPageSourceResponder } from "../lib/browser/page-source";
 import { initializeLanguage } from "../lib/i18n";
 import {
@@ -43,7 +43,7 @@ export default defineContentScript({
     const openPanelOnMount = window.__snippetVaultOpenPanelOnMount__ === true;
     window.__snippetVaultOpenPanelOnMount__ = false;
     // Shadow roots can only use fonts registered on the document.
-    registerBrandFont();
+    registerBrandFonts();
     ctx.onInvalidated(registerPageSourceResponder());
     const [, , initialSuppressionPreferences] = await Promise.all([
       initializeLanguage(),

@@ -10,6 +10,7 @@ import {
 } from 'react';
 import {
   Archive,
+  ArrowLeft,
   Check,
   ChevronDown,
   ChevronUp,
@@ -24,16 +25,9 @@ import { toast } from 'sonner';
 
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from '../../../components/ui/field';
+import { FieldError, FieldLabel } from '../../../components/ui/field';
 import { Input } from '../../../components/ui/input';
+import { Kbd } from '../../../components/ui/kbd';
 import { Textarea } from '../../../components/ui/textarea';
 import {
   MAX_LABEL_NAME_LENGTH,
@@ -54,10 +48,12 @@ import { toIntlLocale, type SupportedLocale } from '../../../lib/i18n-catalog';
 import { getLocalizedLabelName } from '../../../lib/localized-values';
 import { detectLabelIds } from '../../../lib/secret-detection';
 import { useI18n } from '../../../lib/use-i18n';
+import { cn } from '../../../lib/utils';
 import { getMutationStatusMessages } from './mutation-status';
 
 const COLLAPSED_LABEL_LIMIT = 6;
 const LABEL_DETECTION_DELAY_MS = 250;
+const IS_MAC = /mac/i.test(globalThis.navigator?.platform ?? '');
 
 interface SnippetFormProps {
   enhancedCreate?: boolean;
@@ -87,6 +83,7 @@ export function SnippetForm({
   const labelInputId = useId();
   const expiryInputId = useId();
   const expiryHintId = useId();
+  const formRef = useRef<HTMLFormElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
   const submissionInFlightRef = useRef(false);
@@ -190,6 +187,32 @@ export function SnippetForm({
     0,
     labels.length - collapsedLabels.length,
   );
+
+  useEffect(() => {
+    const form = formRef.current;
+    const ownerWindow = form?.ownerDocument.defaultView;
+    if (!form || !ownerWindow) {
+      return;
+    }
+
+    // Radix handles Escape on document capture, before React's form handler.
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !event.composedPath().includes(form)) {
+        return;
+      }
+      event.stopPropagation();
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
+      event.preventDefault();
+      if (!saving && !creatingLabel) {
+        onCancel();
+      }
+    };
+
+    ownerWindow.addEventListener('keydown', handleEscape, true);
+    return () => ownerWindow.removeEventListener('keydown', handleEscape, true);
+  }, [creatingLabel, onCancel, saving]);
 
   useEffect(() => {
     if (editing || !getPageSource) {
@@ -415,11 +438,48 @@ export function SnippetForm({
   function handleLabelInputKeyDown(
     event: ReactKeyboardEvent<HTMLInputElement>,
   ) {
-    if (event.key !== 'Enter') {
+    if (
+      event.key !== 'Enter' ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.nativeEvent.isComposing ||
+      event.nativeEvent.keyCode === 229
+    ) {
       return;
     }
     event.preventDefault();
     void createOrSelectLabel();
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLFormElement>) {
+    if (
+      event.nativeEvent.isComposing ||
+      event.nativeEvent.keyCode === 229
+    ) {
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      event.preventDefault();
+      if (!saving && !creatingLabel) {
+        onCancel();
+      }
+      return;
+    }
+    const submitShortcut =
+      event.key === 'Enter' &&
+      (IS_MAC
+        ? event.metaKey && !event.ctrlKey
+        : event.ctrlKey && !event.metaKey) &&
+      !event.altKey &&
+      !event.shiftKey;
+    if (submitShortcut) {
+      event.stopPropagation();
+      event.preventDefault();
+      if (!event.repeat && canSave) {
+        void submitForm('close');
+      }
+    }
   }
 
   function promoteLabel(label: LabelSummary) {
@@ -436,111 +496,99 @@ export function SnippetForm({
 
   return (
     <form
+      ref={formRef}
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       onSubmit={(event) => void handleSubmit(event)}
+      onKeyDown={handleKeyDown}
     >
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-5">
-        <FieldGroup
-          className="mx-auto w-full max-w-2xl"
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={saving || creatingLabel}
+          aria-label={t('search.create.cancel')}
+          title={t('search.create.cancel')}
+          onClick={onCancel}
         >
-          <div className="pb-1">
-            <div className="min-w-0">
-              <h2 className="font-semibold text-foreground">
-                {t(editing ? 'search.edit.title' : 'search.create.title')}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t(
-                  editing
-                    ? kind === 'vault'
-                      ? 'search.edit.vaultDescription'
-                      : 'search.edit.workspaceDescription'
-                    : kind === 'vault'
-                      ? 'search.create.vaultDescription'
-                      : 'search.create.workspaceDescription',
-                )}
-              </p>
-              {editing && item.source ? (
-                <p className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                  <Globe2 className="size-3.5 shrink-0" aria-hidden="true" />
-                  <span className="truncate">
-                    {t('search.edit.sourcePreserved', [
-                      item.source.title ??
-                        item.source.domain ??
-                        item.source.url ??
-                        '',
-                    ])}
-                  </span>
-                </p>
-              ) : null}
-              {!editing && source ? (
-                <div className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                  <Globe2 className="size-3.5 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 truncate" title={source.url}>
-                    {t('search.create.sourceFromPage', [
-                      formatPageSource(source),
-                    ])}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    disabled={saving}
-                    aria-label={t('search.create.removeSource')}
-                    title={t('search.create.removeSource')}
-                    onClick={() => setSource(null)}
-                  >
-                    <X aria-hidden="true" />
-                  </Button>
-                </div>
-              ) : null}
+          <ArrowLeft aria-hidden="true" />
+        </Button>
+        <h2 className="min-w-0 truncate text-base font-medium">
+          {t(editing ? 'search.edit.title' : 'search.create.title')}
+        </h2>
+      </header>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-32 flex-1">
+          <FieldLabel htmlFor={contentId} className="sr-only">
+            {t('search.create.contentLabel')}
+          </FieldLabel>
+          <Textarea
+            ref={contentRef}
+            id={contentId}
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            maxLength={MAX_SELECTION_LENGTH}
+            autoFocus
+            disabled={saving}
+            placeholder={t('search.create.contentPlaceholder')}
+            className="h-full min-h-0 flex-1 resize-none field-sizing-fixed overflow-y-auto overscroll-contain rounded-none border-0 bg-transparent px-5 py-4 font-mono text-[13px] leading-relaxed shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-[13px] dark:bg-transparent"
+          />
+        </div>
+
+        <div className="flex max-h-1/2 shrink-0 flex-col gap-3 overflow-y-auto overscroll-contain border-t bg-surface px-5 py-3.5">
+          {editing && item.source ? (
+            <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <Globe2 className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate" title={item.source.url}>
+                {t('search.edit.sourcePreserved', [
+                  item.source.title ??
+                    item.source.domain ??
+                    item.source.url ??
+                    '',
+                ])}
+              </span>
+            </p>
+          ) : null}
+          {!editing && source ? (
+            <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <Globe2 className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 truncate" title={source.url}>
+                {t('search.create.sourceFromPage', [formatPageSource(source)])}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                disabled={saving}
+                aria-label={t('search.create.removeSource')}
+                title={t('search.create.removeSource')}
+                onClick={() => setSource(null)}
+              >
+                <X aria-hidden="true" />
+              </Button>
             </div>
-          </div>
+          ) : null}
 
-          <Field>
-            <FieldLabel htmlFor={contentId}>
-              {t('search.create.contentLabel')}
-            </FieldLabel>
-            <Textarea
-              ref={contentRef}
-              id={contentId}
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              maxLength={MAX_SELECTION_LENGTH}
-              rows={8}
-              autoFocus
-              disabled={saving}
-              placeholder={t('search.create.contentPlaceholder')}
-              className="min-h-40 resize-y font-mono"
-            />
-          </Field>
-
-          <FieldSet
-            className="gap-3"
-            aria-describedby={labelHintId}
+          <fieldset
+            className="min-w-0 space-y-2"
+            aria-describedby={
+              archivedCurrentLabelIds.size > 0 ? labelHintId : undefined
+            }
           >
-            <FieldLegend variant="label">
+            <legend className="sr-only">
               {t('search.create.labelsLabel')}
-            </FieldLegend>
-            <FieldDescription id={labelHintId}>
-              {t(
-                archivedCurrentLabelIds.size > 0
-                  ? 'search.edit.labelsHintWithArchived'
-                  : kind === 'workspace'
-                    ? 'search.create.workspaceLabelsHint'
-                    : 'search.create.labelsHint',
-              )}
-            </FieldDescription>
-            {autoLabelIds.length > 0 ? (
-              <FieldDescription className="flex items-center gap-1.5">
-                <Sparkles className="size-3.5 shrink-0" aria-hidden="true" />
-                {t('search.create.labelsAutoDetected')}
-              </FieldDescription>
+            </legend>
+            {archivedCurrentLabelIds.size > 0 ? (
+              <p id={labelHintId} className="sr-only">
+                {t('search.edit.labelsHintWithArchived')}
+              </p>
             ) : null}
             {enhancedCreate &&
             !editing &&
             !labelsLoading &&
               !labelsError ? (
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <FieldLabel htmlFor={labelInputId} className="sr-only">
                   {t('search.create.labelInputLabel')}
                 </FieldLabel>
@@ -551,13 +599,14 @@ export function SnippetForm({
                   maxLength={MAX_LABEL_NAME_LENGTH}
                   disabled={busy}
                   placeholder={t('search.create.labelPlaceholder')}
-                  className="min-w-40 flex-1"
+                  className="h-7 min-w-32 flex-1 text-xs md:text-xs"
                   onChange={(event) => setLabelInput(event.target.value)}
                   onKeyDown={handleLabelInputKeyDown}
                 />
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="ghost"
+                  size="sm"
                   disabled={busy}
                   aria-busy={creatingLabel}
                   onClick={() => void createOrSelectLabel()}
@@ -572,10 +621,10 @@ export function SnippetForm({
               </div>
             ) : null}
             <div
-              className="flex min-h-8 flex-wrap content-start items-center gap-2"
+              className="flex min-h-7 flex-wrap content-start items-center gap-1.5"
             >
               {labelsLoading ? (
-                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <LoaderCircle
                     className="size-4 animate-spin"
                     aria-hidden="true"
@@ -609,7 +658,7 @@ export function SnippetForm({
               ) : null}
 
               {!labelsLoading && !labelsError && labels.length === 0 ? (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {t('search.create.noLabels')}
                 </span>
               ) : null}
@@ -628,8 +677,13 @@ export function SnippetForm({
                       <Badge
                         key={label.id}
                         asChild
-                        variant={selected ? 'default' : 'secondary'}
-                        className="h-7 max-w-48 rounded-md text-sm disabled:pointer-events-none disabled:opacity-50"
+                        variant="outline"
+                        className={cn(
+                          'h-6 max-w-48 rounded-md text-xs disabled:pointer-events-none disabled:opacity-50',
+                          selected
+                            ? 'border-transparent bg-brand/10 dark:bg-brand/15'
+                            : 'bg-background text-muted-foreground hover:text-foreground',
+                        )}
                       >
                         <button
                           type="button"
@@ -642,10 +696,14 @@ export function SnippetForm({
                           }
                           onClick={() => toggleLabel(label.id)}
                         >
+                          {selected ? (
+                            <Check
+                              className="size-3 text-brand-strong"
+                              aria-hidden="true"
+                            />
+                          ) : null}
                           {archivedCurrent ? (
                             <Archive className="size-3" aria-hidden="true" />
-                          ) : selected ? (
-                            <Check className="size-3" aria-hidden="true" />
                           ) : null}
                           <span className="truncate">{localizedName}</span>
                         </button>
@@ -680,11 +738,14 @@ export function SnippetForm({
                 </Button>
               ) : null}
             </div>
-          </FieldSet>
+          </fieldset>
 
           {item?.kind === 'workspace' ? (
-            <Field data-invalid={expiryInvalid || undefined}>
-              <FieldLabel htmlFor={expiryInputId}>
+            <div className="flex flex-wrap items-center gap-2">
+              <FieldLabel
+                htmlFor={expiryInputId}
+                className="text-xs text-muted-foreground"
+              >
                 {t('search.edit.expiryLabel')}
               </FieldLabel>
               <Input
@@ -694,47 +755,60 @@ export function SnippetForm({
                 min={formatDateTimeLocal(Date.now() + 60_000)}
                 step={60}
                 disabled={busy}
-                aria-describedby={expiryHintId}
+                aria-describedby={expiryInvalid ? expiryHintId : undefined}
                 aria-invalid={expiryInvalid || undefined}
-                className="font-mono"
+                className="h-7 w-auto min-w-0 max-w-full font-mono text-xs md:text-xs"
                 onChange={(event) => setExpiryInput(event.target.value)}
               />
-              {expiryInvalid ? (
-                <FieldError id={expiryHintId}>
-                  {t('search.edit.expiryInvalid')}
-                </FieldError>
-              ) : (
-                <FieldDescription id={expiryHintId}>
-                  {t('search.edit.expiryHint')}
-                </FieldDescription>
-              )}
-            </Field>
+            </div>
           ) : null}
-        </FieldGroup>
+        </div>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t px-3 py-3">
+      <footer className="flex h-11 shrink-0 items-center gap-2 border-t bg-surface px-5">
+        <div className="min-w-0 flex-1 text-xs text-muted-foreground" role="status">
+          {expiryInvalid ? (
+            <FieldError
+              id={expiryHintId}
+              className="truncate text-xs"
+              title={t('search.edit.expiryInvalid')}
+            >
+              {t('search.edit.expiryInvalid')}
+            </FieldError>
+          ) : autoLabelIds.length > 0 ? (
+            <span
+              className="flex min-w-0 items-center gap-1.5"
+              title={t('search.create.labelsAutoDetected')}
+            >
+              <Sparkles className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">
+                {t('search.create.labelsAutoDetected')}
+              </span>
+            </span>
+          ) : null}
+        </div>
         <Button
           type="button"
           variant="ghost"
+          size="xs"
           disabled={saving || creatingLabel}
           onClick={onCancel}
         >
           {t('search.create.cancel')}
+          <Kbd>esc</Kbd>
         </Button>
         {enhancedCreate && !editing ? (
           <Button
             type="button"
-            variant="secondary"
+            variant="ghost"
+            size="xs"
             disabled={!canSave}
             aria-busy={savingAction === 'continue'}
             onClick={() => void submitForm('continue')}
           >
             {savingAction === 'continue' ? (
               <LoaderCircle className="animate-spin" aria-hidden="true" />
-            ) : (
-              <Check aria-hidden="true" />
-            )}
+            ) : null}
             {savingAction === 'continue'
               ? t('search.create.saving')
               : t('search.create.saveAndContinue')}
@@ -742,19 +816,21 @@ export function SnippetForm({
         ) : null}
         <Button
           type="submit"
+          variant="secondary"
+          size="xs"
           disabled={!canSave}
           aria-busy={savingAction === 'close'}
+          aria-keyshortcuts={IS_MAC ? 'Meta+Enter' : 'Control+Enter'}
         >
           {savingAction === 'close' ? (
             <LoaderCircle className="animate-spin" aria-hidden="true" />
-          ) : (
-            <Check aria-hidden="true" />
-          )}
+          ) : null}
           {savingAction === 'close'
             ? t(editing ? 'search.edit.saving' : 'search.create.saving')
             : t(editing ? 'search.edit.save' : 'search.create.save')}
+          <Kbd>{IS_MAC ? '⌘' : 'Ctrl'}↵</Kbd>
         </Button>
-      </div>
+      </footer>
     </form>
   );
 }

@@ -56,6 +56,19 @@ export default defineBackground(() => {
       );
     });
 
+  browser.runtime.onInstalled.addListener(({ reason }) => {
+    if (reason !== 'install') {
+      return;
+    }
+    // The entrypoint is owned separately and may not exist in WXT types yet.
+    const url = browser.runtime.getURL(
+      '/welcome.html' as Parameters<typeof browser.runtime.getURL>[0],
+    );
+    browser.tabs.create({ url }).catch((error: unknown) => {
+      console.error('[SnippetVault] Failed to open the welcome page', error);
+    });
+  });
+
   browser.action.onClicked.addListener(openSearchPanel);
   browser.commands.onCommand.addListener((command, tab) => {
     if (command === 'open-search-panel' && tab) {

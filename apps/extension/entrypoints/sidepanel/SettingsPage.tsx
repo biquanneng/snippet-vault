@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type ComponentType,
-} from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   ArrowLeft,
   ChevronRight,
@@ -15,38 +10,27 @@ import {
   SlidersHorizontal,
   Star,
   Tags,
-} from 'lucide-react';
+} from "lucide-react";
 
-import { Button } from '../../components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '../../components/ui/tooltip';
+import { Button } from "../../components/ui/button";
 import {
   MESSAGE_TYPE,
   sendExtensionMessage,
   type LabelListData,
-} from '../../lib/browser/message-contract';
-import { toIntlLocale, type Translator } from '../../lib/i18n-catalog';
-import type { TranslationKey } from '../../lib/i18n-catalog';
-import { useI18n } from '../../lib/use-i18n';
-import { type ThemePreference } from '../../lib/theme';
-import { useThemePreference } from '../../lib/use-theme';
-import { getWorkspaceExpiryDays } from '../../lib/workspace-expiry';
-import { GeneralSettings } from './GeneralSettings';
-import { GuideSettings } from './GuideSettings';
-import { StorageSettings } from './StorageSettings';
-import { TaxonomySettings } from './TaxonomySettings';
-import { ToolsSettings } from './ToolsSettings';
+} from "../../lib/browser/message-contract";
+import { toIntlLocale, type Translator } from "../../lib/i18n-catalog";
+import type { TranslationKey } from "../../lib/i18n-catalog";
+import { useI18n } from "../../lib/use-i18n";
+import { type ThemePreference } from "../../lib/theme";
+import { useThemePreference } from "../../lib/use-theme";
+import { getWorkspaceExpiryDays } from "../../lib/workspace-expiry";
+import { GeneralSettings } from "./GeneralSettings";
+import { GuideSettings } from "./GuideSettings";
+import { StorageSettings } from "./StorageSettings";
+import { TaxonomySettings } from "./TaxonomySettings";
+import { ToolsSettings } from "./ToolsSettings";
 
-type SettingsSectionId =
-  | 'tools'
-  | 'general'
-  | 'taxonomy'
-  | 'storage'
-  | 'guide';
+type SettingsSectionId = "tools" | "general" | "taxonomy" | "storage" | "guide";
 
 interface SettingsMenuItem {
   id: SettingsSectionId;
@@ -63,51 +47,52 @@ interface SettingsSnapshot {
 
 const SETTINGS_MENU_ITEMS: readonly SettingsMenuItem[] = [
   {
-    id: 'tools',
+    id: "tools",
     icon: PocketKnife,
-    titleKey: 'settings.menu.tools.title',
-    descriptionKey: 'settings.menu.tools.description',
+    titleKey: "settings.menu.tools.title",
+    descriptionKey: "settings.menu.tools.description",
     content: ToolsSettings,
   },
   {
-    id: 'general',
+    id: "general",
     icon: SlidersHorizontal,
-    titleKey: 'settings.menu.general.title',
-    descriptionKey: 'settings.menu.general.description',
+    titleKey: "settings.menu.general.title",
+    descriptionKey: "settings.menu.general.description",
     content: GeneralSettings,
   },
   {
-    id: 'taxonomy',
+    id: "taxonomy",
     icon: Tags,
-    titleKey: 'settings.menu.taxonomy.title',
-    descriptionKey: 'settings.menu.taxonomy.description',
+    titleKey: "settings.menu.taxonomy.title",
+    descriptionKey: "settings.menu.taxonomy.description",
     content: TaxonomySettings,
   },
   {
-    id: 'storage',
+    id: "storage",
     icon: Database,
-    titleKey: 'settings.menu.storage.title',
-    descriptionKey: 'settings.menu.storage.description',
+    titleKey: "settings.menu.storage.title",
+    descriptionKey: "settings.menu.storage.description",
     content: StorageSettings,
   },
   {
-    id: 'guide',
+    id: "guide",
     icon: Lightbulb,
-    titleKey: 'settings.menu.guide.title',
-    descriptionKey: 'settings.menu.guide.description',
+    titleKey: "settings.menu.guide.title",
+    descriptionKey: "settings.menu.guide.description",
     content: GuideSettings,
   },
 ] as const;
 
 // Plain link only: fetching the live star count would add a network request
 // to a local-first extension.
-const REPOSITORY_URL = 'https://github.com/biquanneng/snippet-vault';
+const REPOSITORY_URL = "https://github.com/biquanneng/snippet-vault";
 
 export function SettingsPage() {
   const { locale, preference: languagePreference, t } = useI18n();
   const { preference: themePreference } = useThemePreference();
-  const [activeSection, setActiveSection] =
-    useState<SettingsSectionId | null>(null);
+  const [activeSection, setActiveSection] = useState<SettingsSectionId | null>(
+    null,
+  );
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>({
     workspaceExpiryDays: null,
     labelsCount: null,
@@ -136,13 +121,13 @@ export function SettingsPage() {
 
       setSnapshot({
         workspaceExpiryDays:
-          workspaceExpiryResult.status === 'fulfilled'
+          workspaceExpiryResult.status === "fulfilled"
             ? workspaceExpiryResult.value
             : null,
         labelsCount:
-          labelsResult.status === 'fulfilled' && labelsResult.value.ok
-          ? labelsResult.value.data.labels.length
-          : null,
+          labelsResult.status === "fulfilled" && labelsResult.value.ok
+            ? labelsResult.value.data.labels.length
+            : null,
       });
     });
 
@@ -159,18 +144,18 @@ export function SettingsPage() {
         snapshot.workspaceExpiryDays === null
           ? null
           : `${numberFormatter.format(snapshot.workspaceExpiryDays)} ${t(
-              'settings.workspace.days',
+              "settings.workspace.days",
             )}`,
       ]),
       taxonomy:
         snapshot.labelsCount === null
-          ? t('settings.menu.taxonomy.title')
+          ? t("settings.menu.taxonomy.title")
           : `${numberFormatter.format(snapshot.labelsCount)} ${t(
-              'settings.storage.backupLabels',
+              "settings.storage.backupLabels",
             )}`,
-      storage: `${t('settings.storage.active')} · .sv`,
-      tools: 'JSON',
-      guide: '',
+      storage: `${t("settings.storage.active")} · .sv`,
+      tools: "JSON",
+      guide: "",
     }),
     [
       languagePreference,
@@ -186,35 +171,24 @@ export function SettingsPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="sticky top-0 z-10 flex shrink-0 items-start gap-3 bg-background px-4 pt-3 pb-2">
         {activeItem ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setActiveSection(null)}
-                  aria-label={t('settings.menu.back')}
-                >
-                  <ArrowLeft aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={4}>
-                {t('settings.menu.back')}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setActiveSection(null)}
+            aria-label={t("settings.menu.back")}
+          >
+            <ArrowLeft aria-hidden="true" />
+          </Button>
         ) : null}
         <div className="min-w-0 space-y-0.5">
           <h2 className="text-sm font-semibold">
-            {activeItem
-              ? t(activeItem.titleKey)
-              : t('settings.title')}
+            {activeItem ? t(activeItem.titleKey) : t("settings.title")}
           </h2>
           <p className="text-xs leading-5 text-muted-foreground">
             {activeItem
               ? t(activeItem.descriptionKey)
-              : t('settings.description')}
+              : t("settings.description")}
           </p>
         </div>
       </header>
@@ -223,10 +197,7 @@ export function SettingsPage() {
         {ActiveContent ? (
           <ActiveContent />
         ) : (
-          <nav
-            aria-label={t('settings.menu.label')}
-            className="space-y-1 p-2"
-          >
+          <nav aria-label={t("settings.menu.label")} className="space-y-1 p-2">
             {SETTINGS_MENU_ITEMS.map((item) => {
               const Icon = item.icon;
               return (
@@ -269,7 +240,7 @@ export function SettingsPage() {
         )}
         {ActiveContent ? null : (
           <footer className="flex items-center justify-center gap-1.5 px-4 pt-2 pb-4 text-xs text-muted-foreground">
-            <span>{t('settings.menu.sourceCode')}</span>
+            <span>{t("settings.menu.sourceCode")}</span>
             <span aria-hidden="true">·</span>
             <a
               href={REPOSITORY_URL}
@@ -278,7 +249,7 @@ export function SettingsPage() {
               className="inline-flex items-center gap-1 rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Star className="size-3.5" aria-hidden="true" />
-              {t('settings.menu.star')}
+              {t("settings.menu.star")}
             </a>
           </footer>
         )}
@@ -287,34 +258,32 @@ export function SettingsPage() {
   );
 }
 
-function formatSummaryParts(
-  parts: readonly (string | null)[],
-): string {
-  return parts.filter((part): part is string => Boolean(part)).join(' · ');
+function formatSummaryParts(parts: readonly (string | null)[]): string {
+  return parts.filter((part): part is string => Boolean(part)).join(" · ");
 }
 
 function getThemePreferenceLabel(
   preference: ThemePreference,
   t: Translator,
 ): string {
-  if (preference === 'light') {
-    return t('theme.light');
+  if (preference === "light") {
+    return t("theme.light");
   }
-  if (preference === 'dark') {
-    return t('theme.dark');
+  if (preference === "dark") {
+    return t("theme.dark");
   }
-  return t('theme.system');
+  return t("theme.system");
 }
 
 function getLanguagePreferenceLabel(
-  preference: 'system' | 'en' | 'zh_CN',
+  preference: "system" | "en" | "zh_CN",
   t: Translator,
 ): string {
-  if (preference === 'en') {
-    return t('language.english');
+  if (preference === "en") {
+    return t("language.english");
   }
-  if (preference === 'zh_CN') {
-    return t('language.chinese');
+  if (preference === "zh_CN") {
+    return t("language.chinese");
   }
-  return t('language.system');
+  return t("language.system");
 }

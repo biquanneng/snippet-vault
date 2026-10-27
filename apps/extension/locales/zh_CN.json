@@ -42,7 +42,7 @@
       "sourceCode": "在 GitHub 上开源",
       "star": "点个 Star",
       "tools": {
-        "title": "Tools",
+        "title": "工具",
         "description": "在新标签页中打开开发者工具"
       },
       "guide": {
@@ -237,6 +237,7 @@
     "input": {
       "vault": "搜索内容、标签或来源…",
       "workspace": "搜索临时库…",
+      "tools": "搜索工具…",
       "clear": "清空搜索"
     },
     "dialog": {
@@ -247,7 +248,7 @@
     "tabs": {
       "vault": "机密",
       "workspace": "临时库",
-      "tools": "Tools"
+      "tools": "工具"
     },
     "create": {
       "open": "新建",
@@ -354,6 +355,38 @@
       "page": "第 $1 页"
     },
     "stashPage": "暂存当前页",
+    "scopes": {
+      "label": "范围"
+    },
+    "preview": {
+      "source": "来源",
+      "labels": "标签",
+      "expires": "到期",
+      "updated": "更新",
+      "created": "创建",
+      "filterByLabel": "按此标签筛选"
+    },
+    "actions": {
+      "label": "操作",
+      "copy": "复制",
+      "copyAs": "复制为",
+      "groupItem": "当前条目",
+      "groupTemporary": "临时片段",
+      "groupGeneral": "通用",
+      "newSecret": "新建机密",
+      "newTemporary": "新建临时片段",
+      "openJsonTool": "打开 JSON 工具",
+      "confirmDelete": "再次选择以确认删除"
+    },
+    "hints": {
+      "open": "打开",
+      "navigate": "选择"
+    },
+    "footer": {
+      "count": "$1 条",
+      "new": "新建",
+      "settings": "设置"
+    },
     "copyFormats": {
       "open": "按格式复制…",
       "name": "名称",
@@ -392,6 +425,7 @@
   "tools": {
     "json": {
       "title": "JSON 工具",
+      "description": "在独立标签页中格式化、压缩和去转义 JSON。数字精度不变，内容不会被保存。",
       "format": "格式化",
       "minify": "压缩",
       "unescape": "去转义",
@@ -426,7 +460,7 @@
       "description": "短期使用的片段与链接。快捷保存默认存入这里，默认 7 天后过期。"
     },
     "tools": {
-      "title": "Tools",
+      "title": "工具",
       "description": "JSON 工具等实用工具，在独立标签页中打开。"
     },
     "shortcuts": {

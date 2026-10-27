@@ -3,7 +3,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import { registerBrandFont } from '../../lib/brand-font';
+import { registerBrandFonts } from '../../lib/brand-font';
 import { initializeLanguage } from '../../lib/i18n';
 import {
   applyThemeToElement,
@@ -14,7 +14,7 @@ import './style.css';
 import { App } from './App';
 
 async function mountApp() {
-  registerBrandFont();
+  registerBrandFonts();
   applyThemeToElement(document.documentElement, getThemeSnapshot());
   await Promise.all([initializeLanguage(), initializeTheme()]);
   applyThemeToElement(document.documentElement, getThemeSnapshot());

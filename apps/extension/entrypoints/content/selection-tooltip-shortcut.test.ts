@@ -155,7 +155,7 @@ function selectionIdentity(
     startOffset: 0,
     endContainer: selectionNode,
     endOffset: 1,
-    markdown: "selected text",
+    text: "selected text",
     ...overrides,
   };
 }

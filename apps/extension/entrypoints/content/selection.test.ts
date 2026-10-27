@@ -32,8 +32,8 @@ function textControl(
 }
 
 describe('content selection helpers', () => {
-  it('keeps selected whitespace while rejecting an empty selection', () => {
-    expect(normalizeSelectedText('  secret value  ')).toBe('  secret value  ');
+  it('trims selected text while rejecting an empty selection', () => {
+    expect(normalizeSelectedText('  secret value  ')).toBe('secret value');
     expect(normalizeSelectedText(' \n\t ')).toBeNull();
   });
 
@@ -106,7 +106,7 @@ describe('content selection helpers', () => {
     const input = textControl();
     expect(getSelectableTextControl(input)).toBe(input);
     expect(readTextControlSnapshot(input)).toEqual({
-      markdown: 'sk-test-123',
+      text: 'sk-test-123',
       box: { left: 10, right: 310, top: 40, bottom: 72 },
       start: 5,
       end: 16,

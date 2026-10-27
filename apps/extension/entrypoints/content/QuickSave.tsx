@@ -234,8 +234,8 @@ export function QuickSave({
       const response = await sendExtensionMessage<SaveSelectionData>({
         type: MESSAGE_TYPE.saveSelection,
         payload: {
-          content: snapshot.markdown,
-          labelIds: detectLabelIds(snapshot.markdown),
+          content: snapshot.text,
+          labelIds: detectLabelIds(snapshot.text),
           temporary: target === "workspace",
           ...(document.title ? { sourceTitle: document.title } : {}),
         },
@@ -547,7 +547,7 @@ function readPageLinkIdentity(
     startOffset: 0,
     endContainer: document,
     endOffset: 0,
-    markdown: location.href,
+    text: location.href,
   };
 }
 
@@ -563,7 +563,7 @@ function readCopyCapture(target: EventTarget | null): CopyCapture | null {
             startOffset: snapshot.start,
             endContainer: control,
             endOffset: snapshot.end,
-            markdown: snapshot.markdown,
+            text: snapshot.text,
           },
           range: null,
         }
@@ -597,6 +597,6 @@ function createSelectionIdentity(
     startOffset: range.startOffset,
     endContainer: range.endContainer,
     endOffset: range.endOffset,
-    markdown: snapshot.markdown,
+    text: snapshot.text,
   };
 }
