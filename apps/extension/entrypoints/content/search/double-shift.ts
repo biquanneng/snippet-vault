@@ -2,6 +2,8 @@
 
 export interface ShortcutKeyEvent {
   key: string;
+  code?: string;
+  keyCode?: number;
   timeStamp: number;
   repeat: boolean;
   altKey: boolean;
@@ -15,8 +17,12 @@ export class DoubleShiftDetector {
   constructor(private readonly thresholdMs = 400) {}
 
   register(event: ShortcutKeyEvent): boolean {
+    const isShift = event.key === 'Shift' || (
+      (event.key === 'Process' || event.keyCode === 229) &&
+      (event.code === 'ShiftLeft' || event.code === 'ShiftRight')
+    );
     if (
-      event.key !== 'Shift' ||
+      !isShift ||
       event.repeat ||
       event.altKey ||
       event.ctrlKey ||

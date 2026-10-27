@@ -71,7 +71,7 @@ export const StoreSmallPromo = () => (
               letterSpacing: "0.02em",
             }}
           >
-            Local-first Vault
+            Local-first Secrets
           </span>
         </div>
       </div>

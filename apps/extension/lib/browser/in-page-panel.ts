@@ -4,6 +4,23 @@
 export const OPEN_IN_PAGE_PANEL_MESSAGE = 'snippet-vault/open-in-page-panel';
 /** Content script → background: open the settings side panel. */
 export const OPEN_SETTINGS_MESSAGE = 'snippet-vault/open-settings';
+/** Extension UI → background: open a built-in tool in an extension tab. */
+export const OPEN_TOOL_MESSAGE = 'snippet-vault/open-tool';
+
+export interface OpenToolRequest {
+  type: typeof OPEN_TOOL_MESSAGE;
+  tool: 'json';
+}
+
+export interface OpenToolData {
+  tabId: number;
+}
+
+export function isOpenToolRequest(message: unknown): message is OpenToolRequest {
+  return isMessageOfType(message, OPEN_TOOL_MESSAGE) &&
+    (message as { tool?: unknown }).tool === 'json';
+}
+
 /** `storage.session` key telling the side panel why it was opened. */
 export const UNSUPPORTED_PAGE_NOTICE_KEY = 'unsupportedPageNotice';
 

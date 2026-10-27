@@ -16,7 +16,9 @@ export const MESSAGE_TYPE = {
   inspectBackup: 'snippet-vault/inspect-backup',
   renameLabel: 'snippet-vault/rename-label',
   restoreLabel: 'snippet-vault/restore-label',
+  restoreWorkspaceExpiry: 'snippet-vault/restore-workspace-expiry',
   promoteWorkspaceItem: 'snippet-vault/promote-workspace-item',
+  savePageLink: 'snippet-vault/save-page-link',
   saveSelection: 'snippet-vault/save-selection',
   searchPanel: 'snippet-vault/search-panel',
   updateSnippet: 'snippet-vault/update-snippet',
@@ -84,6 +86,14 @@ export interface SaveSelectionRequest extends LocalizedRequest {
   };
 }
 
+export interface SavePageLinkRequest extends LocalizedRequest {
+  type: typeof MESSAGE_TYPE.savePageLink;
+  payload: {
+    /** Resolve the quick-save preference in the calling content script. */
+    temporary: boolean;
+  };
+}
+
 export type SearchPanelKind = 'vault' | 'workspace';
 
 export interface CreateSnippetRequest extends LocalizedRequest {
@@ -136,6 +146,13 @@ interface WorkspaceLifecycleRequest extends LocalizedRequest {
 
 export interface ExtendWorkspaceItemRequest extends WorkspaceLifecycleRequest {
   type: typeof MESSAGE_TYPE.extendWorkspaceItem;
+}
+
+export interface RestoreWorkspaceExpiryRequest extends WorkspaceLifecycleRequest {
+  type: typeof MESSAGE_TYPE.restoreWorkspaceExpiry;
+  payload: WorkspaceLifecycleRequest['payload'] & {
+    expiresAt: number;
+  };
 }
 
 export interface PromoteWorkspaceItemRequest extends WorkspaceLifecycleRequest {
@@ -196,6 +213,8 @@ export type VaultDataRequest =
   | RenameLabelRequest
   | PromoteWorkspaceItemRequest
   | RestoreLabelRequest
+  | RestoreWorkspaceExpiryRequest
+  | SavePageLinkRequest
   | SaveSelectionRequest
   | SearchPanelRequest
   | UpdateSnippetRequest;
@@ -242,6 +261,17 @@ export interface SaveSelectionData {
   labelStatus: 'updated' | 'stale';
 }
 
+export type SavePageLinkData = Omit<SaveSelectionData, 'duplicate'> & (
+  | { outcome: 'created' | 'duplicate'; previousExpiresAt?: never }
+  | {
+      outcome: 'extended';
+      kind: 'workspace';
+      expiresAt: number;
+      previousExpiresAt: number;
+      addedDays: number;
+    }
+);
+
 export interface DeleteItemData {
   searchStatus: 'synchronized' | 'rebuild-required';
 }
@@ -276,6 +306,8 @@ export interface ExtendWorkspaceItemData {
   addedDays: number;
   searchStatus: 'synchronized' | 'rebuild-required';
 }
+
+export type RestoreWorkspaceExpiryData = Omit<ExtendWorkspaceItemData, 'addedDays'>;
 
 export interface PromoteWorkspaceItemData {
   id: string;
@@ -413,6 +445,22 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
     value.type === MESSAGE_TYPE.promoteWorkspaceItem
   ) {
     return isWorkspaceLifecyclePayload(value.payload);
+  }
+
+  if (value.type === MESSAGE_TYPE.restoreWorkspaceExpiry) {
+    return (
+      isWorkspaceLifecyclePayload(value.payload) &&
+      isRecord(value.payload) &&
+      isBoundedInteger(value.payload.expiresAt, 1, Number.MAX_SAFE_INTEGER)
+    );
+  }
+
+  if (value.type === MESSAGE_TYPE.savePageLink) {
+    return (
+      isRecord(value.payload) &&
+      Object.keys(value.payload).length === 1 &&
+      typeof value.payload.temporary === 'boolean'
+    );
   }
 
   if (

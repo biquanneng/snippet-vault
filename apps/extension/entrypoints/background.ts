@@ -14,9 +14,12 @@ import {
 import {
   canHostInPagePanel,
   isMessageOfType,
+  isOpenToolRequest,
   OPEN_IN_PAGE_PANEL_MESSAGE,
   OPEN_SETTINGS_MESSAGE,
+  OPEN_TOOL_MESSAGE,
   UNSUPPORTED_PAGE_NOTICE_KEY,
+  type OpenToolData,
 } from '../lib/browser/in-page-panel';
 import { trackAnalyticsEvent } from '../lib/analytics';
 import { openSidePanel } from '../lib/analytics-events';
@@ -53,19 +56,43 @@ export default defineBackground(() => {
       );
     });
 
-  browser.action.onClicked.addListener((tab) => {
-    if (tab.id === undefined) {
-      return;
+  browser.action.onClicked.addListener(openSearchPanel);
+  browser.commands.onCommand.addListener((command, tab) => {
+    if (command === 'open-search-panel' && tab) {
+      openSearchPanel(tab);
     }
-    if (canHostInPagePanel(tab.url)) {
-      void openInPagePanel(tab.id);
-      return;
-    }
-    // Must run before any await to keep the click's user gesture.
-    openSettingsPanel(tab.id, true);
   });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (isMessageOfType(message, OPEN_TOOL_MESSAGE)) {
+      if (sender.id !== browser.runtime.id) {
+        sendResponse({
+          ok: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: translate(getUiLocale(), 'errors.unauthorized'),
+          },
+        });
+        return false;
+      }
+      if (!isOpenToolRequest(message)) {
+        sendResponse(failure(
+          'INVALID_MESSAGE',
+          translate(getUiLocale(), 'errors.invalidRequest'),
+        ));
+        return false;
+      }
+      openJsonTool()
+        .then(sendResponse)
+        .catch(() => {
+          sendResponse(failure(
+            'INTERNAL_ERROR',
+            translate(getUiLocale(), 'errors.internal'),
+          ));
+        });
+      return true;
+    }
+
     if (isMessageOfType(message, OPEN_SETTINGS_MESSAGE)) {
       if (sender.id === browser.runtime.id && sender.tab?.id !== undefined) {
         openSettingsPanel(sender.tab.id, false);
@@ -142,6 +169,46 @@ export default defineBackground(() => {
   });
 });
 
+function openSearchPanel(tab: { id?: number; url?: string }): void {
+  if (tab.id === undefined) {
+    return;
+  }
+  if (canHostInPagePanel(tab.url)) {
+    void openInPagePanel(tab.id);
+    return;
+  }
+  // Keep the toolbar/command user gesture: do not await before opening.
+  openSettingsPanel(tab.id, true);
+}
+
+async function openJsonTool(): Promise<ExtensionResponse<OpenToolData>> {
+  // The tool entrypoint is owned separately and may not exist in WXT types yet.
+  const url = browser.runtime.getURL(
+    '/tools-json.html' as Parameters<typeof browser.runtime.getURL>[0],
+  );
+  // `tabs.query({ url })` silently drops the filter without the `tabs`
+  // permission; extension contexts are visible here without any permission.
+  let existing: { tabId: number; windowId: number } | undefined;
+  try {
+    [existing] = await browser.runtime.getContexts({
+      contextTypes: ['TAB' as Browser.runtime.ContextType],
+      documentUrls: [url],
+    });
+  } catch {
+    // Older browsers lack getContexts; fall back to a new tab.
+  }
+  if (existing && existing.tabId >= 0) {
+    await browser.tabs.update(existing.tabId, { active: true });
+    await browser.windows.update(existing.windowId, { focused: true });
+    return { ok: true, data: { tabId: existing.tabId } };
+  }
+  const tab = await browser.tabs.create({ url });
+  if (tab.id === undefined) {
+    return failure('INTERNAL_ERROR', translate(getUiLocale(), 'errors.internal'));
+  }
+  return { ok: true, data: { tabId: tab.id } };
+}
+
 async function openInPagePanel(tabId: number): Promise<void> {
   try {
     await browser.tabs.sendMessage(tabId, { type: OPEN_IN_PAGE_PANEL_MESSAGE });
@@ -214,6 +281,7 @@ function createSenderContext(
     senderUrl: sender.url,
     tabId: sender.tab?.id,
     tabUrl: sender.tab?.url,
+    tabTitle: sender.tab?.title,
   };
 }
 

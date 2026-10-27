@@ -33,10 +33,10 @@ export function useDoubleShiftShortcut(
     };
     const reset = () => detector.reset();
 
-    document.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('blur', reset);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('blur', reset);
     };
   }, [enabled]);

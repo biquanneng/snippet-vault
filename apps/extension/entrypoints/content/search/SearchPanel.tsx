@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Settings2 } from 'lucide-react';
 
+import { OnboardingGuide } from '../../../components/onboarding/OnboardingGuide';
+import { openExtensionTool } from '../../../components/tools/ToolList';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
@@ -18,6 +20,7 @@ import {
   TooltipTrigger,
 } from '../../../components/ui/tooltip';
 import { OPEN_SETTINGS_MESSAGE } from '../../../lib/browser/in-page-panel';
+import { getOnboardingSeen, markOnboardingSeen } from '../../../lib/onboarding';
 import { useI18n } from '../../../lib/use-i18n';
 import {
   SearchPanelContent,
@@ -37,6 +40,25 @@ export function SearchPanel({
 }: SearchPanelProps) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showGuide, setShowGuide] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getOnboardingSeen().then((seen) => {
+      if (!cancelled && !seen) {
+        setShowGuide(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const dismissGuide = () => {
+    setShowGuide(false);
+    void markOnboardingSeen();
+    window.setTimeout(() => inputRef.current?.focus());
+  };
 
   return (
     <Dialog
@@ -68,7 +90,25 @@ export function SearchPanel({
           {t('search.dialog.description')}
         </DialogDescription>
 
+        {showGuide ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <h2 className="px-5 pt-5 text-base font-semibold">
+              {t('onboarding.title')}
+            </h2>
+            <OnboardingGuide
+              actions={(
+                <Button type="button" autoFocus onClick={dismissGuide}>
+                  {t('onboarding.done')}
+                </Button>
+              )}
+            />
+          </div>
+        ) : (
         <SearchPanelContent
+          onOpenTool={(tool) => {
+            openExtensionTool(tool);
+            onClose();
+          }}
           capabilities={{
             enhancedCreate: true,
             workspaceLifecycleActions: true,
@@ -111,6 +151,7 @@ export function SearchPanel({
             </>
           )}
         />
+        )}
       </DialogContent>
     </Dialog>
   );

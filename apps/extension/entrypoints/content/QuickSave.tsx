@@ -10,6 +10,8 @@ import {
   sendExtensionMessage,
   type DeleteItemData,
   type PromoteWorkspaceItemData,
+  type RestoreWorkspaceExpiryData,
+  type SavePageLinkData,
   type SaveSelectionData,
 } from "../../lib/browser/message-contract";
 import { toIntlLocale } from "../../lib/i18n-catalog";
@@ -113,6 +115,17 @@ export function QuickSave({
         return;
       }
 
+      const pageIdentity = readPageLinkIdentity(event.target);
+      if (pageIdentity) {
+        if (shortcutDetector.register(event, pageIdentity) !== "matched") {
+          return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        void savePageLink();
+        return;
+      }
+
       const capture = readCopyCapture(event.target);
       if (
         !capture ||
@@ -157,6 +170,59 @@ export function QuickSave({
     };
   }, []);
 
+  async function savePageLink() {
+    if (savingRef.current) {
+      return;
+    }
+    savingRef.current = true;
+    const { t: translate, onBeforeFeedback: raise } = latestRef.current;
+    try {
+      const target = await getQuickSaveTarget();
+      const response = await sendExtensionMessage<SavePageLinkData>({
+        type: MESSAGE_TYPE.savePageLink,
+        payload: { temporary: target === "workspace" },
+      });
+      raise();
+      if (!response.ok) {
+        toast.error(translate("quickSave.saveFailed"), {
+          description: response.error.message,
+        });
+        return;
+      }
+      showQuickSaveToast(
+        { ...response.data, duplicate: response.data.outcome === "duplicate" },
+        response.data,
+      );
+    } finally {
+      savingRef.current = false;
+    }
+  }
+
+  function showQuickSaveToast(
+    saved: SaveSelectionData,
+    pageLink?: PageLinkOutcome,
+  ) {
+    const toastId = `quick-save:${saved.id}:${Date.now()}`;
+    // Sonner only re-measures a toast's height when the toast itself is
+    // updated, so toggling "More" re-issues it under the same id.
+    const showToast = (showMore: boolean) => {
+      toast.custom(
+        () => (
+          <QuickSaveToast
+            toastId={toastId}
+            saved={saved}
+            pageLink={pageLink}
+            latestRef={latestRef}
+            showMore={showMore}
+            onToggleMore={() => showToast(!showMore)}
+          />
+        ),
+        { id: toastId, duration: QUICK_SAVE_TOAST_MS },
+      );
+    };
+    showToast(false);
+  }
+
   async function saveSnapshot(snapshot: SelectionSnapshot) {
     if (savingRef.current) {
       return;
@@ -182,24 +248,7 @@ export function QuickSave({
         });
         return;
       }
-      const toastId = `quick-save:${response.data.id}:${Date.now()}`;
-      // Sonner only re-measures a toast's height when the toast itself is
-      // updated, so toggling "More" re-issues it under the same id.
-      const showToast = (showMore: boolean) => {
-        toast.custom(
-          () => (
-            <QuickSaveToast
-              toastId={toastId}
-              saved={response.data}
-              latestRef={latestRef}
-              showMore={showMore}
-              onToggleMore={() => showToast(!showMore)}
-            />
-          ),
-          { id: toastId, duration: QUICK_SAVE_TOAST_MS },
-        );
-      };
-      showToast(false);
+      showQuickSaveToast(response.data);
     } finally {
       savingRef.current = false;
     }
@@ -208,9 +257,16 @@ export function QuickSave({
   return null;
 }
 
+type PageLinkOutcome = Pick<
+  SavePageLinkData,
+  "outcome" | "previousExpiresAt"
+>;
+
 interface QuickSaveToastProps {
   toastId: string | number;
   saved: SaveSelectionData;
+  /** Set when the current page was stashed instead of a selection. */
+  pageLink?: PageLinkOutcome;
   showMore: boolean;
   onToggleMore: () => void;
   latestRef: RefObject<{
@@ -227,6 +283,7 @@ type ToastAction = "undo" | "promote" | SelectionTooltipSuppressionScope;
 function QuickSaveToast({
   toastId,
   saved,
+  pageLink,
   latestRef,
   showMore,
   onToggleMore,
@@ -240,11 +297,16 @@ function QuickSaveToast({
       ? 0
       : Math.max(1, Math.round((saved.expiresAt - Date.now()) / DAY_MS));
 
+  // The page URL is never shown: its query may carry signatures or tokens.
   const title = saved.duplicate
     ? t("quickSave.duplicate")
-    : workspace
-      ? t("quickSave.savedWorkspace")
-      : t("quickSave.savedVault");
+    : pageLink?.outcome === "extended"
+      ? t("quickSave.pageExtended")
+      : pageLink
+        ? t("quickSave.savedPage")
+        : workspace
+          ? t("quickSave.savedWorkspace")
+          : t("quickSave.savedVault");
   const description = saved.duplicate
     ? workspace
       ? t("quickSave.duplicateWorkspace")
@@ -274,10 +336,23 @@ function QuickSaveToast({
   }
 
   async function undoSave() {
-    const response = await sendExtensionMessage<DeleteItemData>({
-      type: MESSAGE_TYPE.deleteItem,
-      payload: { kind: saved.kind, id: saved.id },
-    });
+    const previousExpiresAt =
+      pageLink?.outcome === "extended" ? pageLink.previousExpiresAt : undefined;
+    // An extended link is undone by restoring its expiry, not by deleting it.
+    const response =
+      previousExpiresAt === undefined
+        ? await sendExtensionMessage<DeleteItemData>({
+            type: MESSAGE_TYPE.deleteItem,
+            payload: { kind: saved.kind, id: saved.id },
+          })
+        : await sendExtensionMessage<RestoreWorkspaceExpiryData>({
+            type: MESSAGE_TYPE.restoreWorkspaceExpiry,
+            payload: {
+              id: saved.id,
+              expectedUpdatedAt: saved.updatedAt,
+              expiresAt: previousExpiresAt,
+            },
+          });
     toast.dismiss(toastId);
     if (!response.ok) {
       toast.error(t("quickSave.undoFailed"), {
@@ -447,6 +522,33 @@ interface CopyCapture {
   identity: SelectionTooltipSelectionIdentity;
   /** Page selections flash on save; text controls show their own selection. */
   range: Range | null;
+}
+
+/**
+ * With nothing selected outside editable fields, Cmd/Ctrl+C+C stashes the
+ * current http(s) page. Returns the identity both presses must share.
+ */
+function readPageLinkIdentity(
+  target: EventTarget | null,
+): SelectionTooltipSelectionIdentity | null {
+  if (
+    isEditableTarget(target) ||
+    getSelectableTextControl(target) ||
+    (location.protocol !== "http:" && location.protocol !== "https:")
+  ) {
+    return null;
+  }
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed && selection.toString().trim()) {
+    return null;
+  }
+  return {
+    startContainer: document,
+    startOffset: 0,
+    endContainer: document,
+    endOffset: 0,
+    markdown: location.href,
+  };
 }
 
 function readCopyCapture(target: EventTarget | null): CopyCapture | null {

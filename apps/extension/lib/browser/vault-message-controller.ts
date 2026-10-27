@@ -65,6 +65,10 @@ import {
   type PromoteWorkspaceItemRequest,
   type RenameLabelRequest,
   type RestoreLabelRequest,
+  type RestoreWorkspaceExpiryData,
+  type RestoreWorkspaceExpiryRequest,
+  type SavePageLinkData,
+  type SavePageLinkRequest,
   type SaveSelectionData,
   type SaveSelectionRequest,
   type SearchPanelData,
@@ -74,6 +78,7 @@ import {
   type SearchPanelRequest,
   type VaultDataRequest,
 } from './message-contract';
+import { getPageLinkUrl, toPageLinkMarkdown } from '../page-link';
 
 export const DEFAULT_WORKSPACE_TTL_MS = workspaceExpiryDaysToMs(
   DEFAULT_WORKSPACE_EXPIRY_DAYS,
@@ -112,6 +117,8 @@ type ControllerResponseData =
   | MutationStatusData
   | PromoteWorkspaceItemData
   | SaveSelectionData
+  | SavePageLinkData
+  | RestoreWorkspaceExpiryData
   | SearchPanelData
   | UpdateSnippetData;
 
@@ -164,6 +171,7 @@ export interface MessageSenderContext {
   senderUrl?: string;
   tabId?: number;
   tabUrl?: string;
+  tabTitle?: string;
 }
 
 interface VaultMessageControllerOptions {
@@ -200,6 +208,7 @@ export class VaultMessageController {
   private readonly idFactory: () => string;
   private readonly workspaceExpiryDaysProvider: () => Promise<number>;
   private defaultLabelsPromise: Promise<void> | null = null;
+  private pageLinkSaveQueue: Promise<void> = Promise.resolve();
 
   constructor(options: VaultMessageControllerOptions) {
     this.service = options.service;
@@ -255,6 +264,9 @@ export class VaultMessageController {
     if (request.type === MESSAGE_TYPE.extendWorkspaceItem) {
       return this.extendWorkspaceItem(request, locale);
     }
+    if (request.type === MESSAGE_TYPE.restoreWorkspaceExpiry) {
+      return this.restoreWorkspaceExpiry(request, locale);
+    }
     if (request.type === MESSAGE_TYPE.promoteWorkspaceItem) {
       return this.promoteWorkspaceItem(request, locale);
     }
@@ -265,7 +277,15 @@ export class VaultMessageController {
       return this.updateSnippet(request, locale);
     }
     if (request.type === MESSAGE_TYPE.searchPanel) {
-      return this.searchPanel(request, locale);
+      return this.searchPanel(request, sender, locale);
+    }
+    if (request.type === MESSAGE_TYPE.savePageLink) {
+      // Serialize lookup + save so simultaneous page saves cannot add copies.
+      const pending = this.pageLinkSaveQueue.then(() =>
+        this.savePageLink(request, sender, locale),
+      );
+      this.pageLinkSaveQueue = pending.then(() => undefined, () => undefined);
+      return pending;
     }
 
     return this.saveSelection(request, sender, locale);
@@ -643,6 +663,85 @@ export class VaultMessageController {
     );
   }
 
+  private async savePageLink(
+    request: SavePageLinkRequest,
+    sender: MessageSenderContext,
+    locale: SupportedLocale,
+  ): Promise<ExtensionResponse<SavePageLinkData>> {
+    // Never accept a caller-supplied URL/title or fall back to a frame URL.
+    const url = sender.tabUrl;
+    if (!url || !isSupportedPageUrl(url)) {
+      return failure('INVALID_MESSAGE', translate(locale, 'errors.invalidRequest'));
+    }
+
+    const kind = request.payload.temporary ? 'workspace' : 'vault';
+    const { snapshot } = await this.service.exportSnapshot();
+    const now = this.clock();
+    // Only earlier stashes count: ordinary captures from the page share its
+    // source URL but are not links to it.
+    const existing = snapshot.records.find((record) =>
+      record.kind === kind && getPageLinkUrl(record.item) === url &&
+      (record.kind !== 'workspace' || record.item.expiresAt > now),
+    );
+    if (existing?.kind === 'workspace') {
+      const extended = await this.extendWorkspaceItem({
+        type: MESSAGE_TYPE.extendWorkspaceItem,
+        payload: {
+          id: existing.item.id,
+          expectedUpdatedAt: existing.item.updatedAt,
+        },
+      }, locale);
+      if (!extended.ok) {
+        return extended;
+      }
+      return {
+        ok: true,
+        data: {
+          ...extended.data,
+          kind: 'workspace',
+          outcome: 'extended',
+          previousExpiresAt: existing.item.expiresAt,
+          labelStatus: 'updated',
+        },
+      };
+    }
+    if (existing) {
+      return {
+        ok: true,
+        data: {
+          id: existing.item.id,
+          kind: 'vault',
+          updatedAt: existing.item.updatedAt,
+          outcome: 'duplicate',
+          searchStatus: 'synchronized',
+          labelStatus: 'updated',
+        },
+      };
+    }
+
+    const title = normalizeOptionalText(sender.tabTitle, MAX_SOURCE_TITLE_LENGTH);
+    const content = toPageLinkMarkdown(title, url);
+    const validationError = this.validateContent(content, locale);
+    if (validationError) {
+      return validationError;
+    }
+    const saved = await this.saveItem({
+      content,
+      labelIds: [],
+      temporary: request.payload.temporary,
+      source: {
+        ...(title ? { title } : {}),
+        url,
+        domain: new URL(url).hostname,
+      },
+    }, locale);
+    if (!saved.ok) {
+      return saved;
+    }
+    const { duplicate: _duplicate, ...data } = saved.data;
+    return { ok: true, data: { ...data, outcome: 'created' } };
+  }
+
   private async createSnippet(
     request: CreateSnippetRequest,
     locale: SupportedLocale,
@@ -846,6 +945,48 @@ export class VaultMessageController {
     };
   }
 
+  private async restoreWorkspaceExpiry(
+    request: RestoreWorkspaceExpiryRequest,
+    locale: SupportedLocale,
+  ): Promise<ExtensionResponse<RestoreWorkspaceExpiryData>> {
+    const existing = await this.service.getItem({
+      kind: 'workspace',
+      id: request.payload.id,
+    });
+    if (!existing || existing.kind !== 'workspace') {
+      return this.toUpdateFailure('not-found', locale);
+    }
+    if (existing.item.updatedAt !== request.payload.expectedUpdatedAt) {
+      return this.toUpdateFailure('conflict', locale);
+    }
+    const now = this.clock();
+    if (existing.item.expiresAt <= now) {
+      return this.toUpdateFailure('not-found', locale);
+    }
+    const { expiresAt } = request.payload;
+    if (expiresAt <= now || expiresAt >= existing.item.expiresAt) {
+      return failure('INVALID_MESSAGE', translate(locale, 'errors.invalidRequest'));
+    }
+    const updatedAt = Math.max(now, existing.item.updatedAt + 1);
+    const receipt = await this.service.saveWorkspaceItemIfUnchanged({
+      ...existing.item,
+      updatedAt,
+      expiresAt,
+    }, request.payload.expectedUpdatedAt);
+    if (receipt.outcome !== 'updated') {
+      return this.toUpdateFailure(receipt.outcome, locale);
+    }
+    return {
+      ok: true,
+      data: {
+        id: existing.item.id,
+        updatedAt,
+        expiresAt,
+        searchStatus: receipt.searchStatus,
+      },
+    };
+  }
+
   private async promoteWorkspaceItem(
     request: PromoteWorkspaceItemRequest,
     locale: SupportedLocale,
@@ -1021,6 +1162,7 @@ export class VaultMessageController {
 
   private async searchPanel(
     request: SearchPanelRequest,
+    sender: MessageSenderContext,
     locale: SupportedLocale,
   ): Promise<ExtensionResponse<SearchPanelData>> {
     await this.ensureDefaultLabels();
@@ -1054,6 +1196,7 @@ export class VaultMessageController {
       offset: request.payload.page * request.payload.pageSize,
       limit: request.payload.pageSize,
       labelId: request.payload.labelId,
+      preferredDomain: getPageHostname(sender.tabUrl),
     });
     return {
       ok: true,
@@ -1325,16 +1468,19 @@ export class VaultMessageController {
         request.type === MESSAGE_TYPE.createSnippet ||
         request.type === MESSAGE_TYPE.deleteItem ||
         request.type === MESSAGE_TYPE.extendWorkspaceItem ||
+        request.type === MESSAGE_TYPE.restoreWorkspaceExpiry ||
         request.type === MESSAGE_TYPE.getLabels ||
         request.type === MESSAGE_TYPE.promoteWorkspaceItem ||
         request.type === MESSAGE_TYPE.searchPanel ||
         request.type === MESSAGE_TYPE.saveSelection ||
+        request.type === MESSAGE_TYPE.savePageLink ||
         request.type === MESSAGE_TYPE.updateSnippet
       );
     }
 
     return (
       request.type !== MESSAGE_TYPE.saveSelection &&
+      request.type !== MESSAGE_TYPE.savePageLink &&
       this.isTrustedExtensionPage(sender)
     );
   }
@@ -1482,6 +1628,10 @@ function isSupportedPageUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function getPageHostname(value: string | undefined): string | undefined {
+  return value && isSupportedPageUrl(value) ? new URL(value).hostname : undefined;
 }
 
 function toBackupSummary(

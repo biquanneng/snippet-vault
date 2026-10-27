@@ -10,13 +10,19 @@ import {
 } from 'react';
 import {
   BriefcaseBusiness,
+  Link2,
   Plus,
+  PocketKnife,
   RefreshCw,
   ShieldCheck,
   Tag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import {
+  ToolList,
+  type ExtensionTool,
+} from '../../../components/tools/ToolList';
 import { Button } from '../../../components/ui/button';
 import {
   Tabs,
@@ -43,6 +49,7 @@ import {
   type SearchPanelItem,
   type SearchPanelKind,
   type SearchPanelRequest,
+  type SavePageLinkData,
 } from '../../../lib/browser/message-contract';
 import {
   readDocumentSource,
@@ -81,7 +88,11 @@ interface SearchPanelContentProps {
   requestSender?: SearchPanelRequestSender;
   /** Source suggested for new snippets; defaults to the current document. */
   getPageSource?: () => Promise<PageSource | null>;
+  onOpenTool?: (tool: ExtensionTool) => void;
 }
+
+/** The Tools tab is navigation only; it is never sent as a search kind. */
+type PanelView = SearchPanelKind | 'tools';
 
 interface WorkspaceActionState {
   action: 'extend' | 'promote';
@@ -99,6 +110,7 @@ export function SearchPanelContent({
   toolbarEnd,
   requestSender = sendSearchPanelRequest,
   getPageSource = readCurrentDocumentSource,
+  onOpenTool,
 }: SearchPanelContentProps) {
   const { locale, t } = useI18n();
   const resultsId = useId();
@@ -106,6 +118,11 @@ export function SearchPanelContent({
   const workspaceLifecycleActionsEnabled =
     capabilities?.workspaceLifecycleActions ?? false;
   const [kind, setKind] = useState<SearchPanelKind>('vault');
+  const [view, setView] = useState<PanelView>('vault');
+  const toolsView = view === 'tools';
+  const [stashingPage, setStashingPage] = useState(false);
+  const canStashPage =
+    location.protocol === 'http:' || location.protocol === 'https:';
   const [draftQuery, setDraftQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -252,8 +269,20 @@ export function SearchPanelContent({
     setRefreshKey((current) => current + 1);
   }
 
-  function changeKind(value: string) {
-    if (formOpen || (value !== 'vault' && value !== 'workspace')) {
+  function changeView(value: string) {
+    if (formOpen) {
+      return;
+    }
+    if (value === 'tools') {
+      setView(value);
+      setKeyboardSelectionActive(false);
+      return;
+    }
+    if (value !== 'vault' && value !== 'workspace') {
+      return;
+    }
+    setView(value);
+    if (value === kind) {
       return;
     }
     setKind(value);
@@ -389,6 +418,38 @@ export function SearchPanelContent({
     setRefreshKey((current) => current + 1);
   }
 
+  async function stashCurrentPage() {
+    if (formOpen || stashingPage) {
+      return;
+    }
+    setStashingPage(true);
+    try {
+      // The panel's Temporary tab always stashes there, whatever the quick
+      // save target is.
+      const response = await sendExtensionMessage<SavePageLinkData>({
+        type: MESSAGE_TYPE.savePageLink,
+        payload: { temporary: true },
+      });
+      if (!response.ok) {
+        toast.error(t('quickSave.saveFailed'), {
+          description: response.error.message,
+        });
+        return;
+      }
+      toast.success(
+        t(
+          response.data.outcome === 'extended'
+            ? 'quickSave.pageExtended'
+            : 'quickSave.savedPage',
+        ),
+      );
+      setData(null);
+      setRefreshKey((current) => current + 1);
+    } finally {
+      setStashingPage(false);
+    }
+  }
+
   function openCreateForm() {
     setKeyboardSelectionActive(false);
     setFormState({ mode: 'create' });
@@ -508,7 +569,7 @@ export function SearchPanelContent({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain">
       {/* The form carries its own heading; search and tabs would only be
           disabled chrome while it is open. */}
-      {formOpen ? null : (
+      {formOpen || toolsView ? null : (
         <header className="shrink-0 px-3 pt-1">
           <SearchInputBar
             ref={inputRef}
@@ -533,8 +594,8 @@ export function SearchPanelContent({
       )}
 
       <Tabs
-        value={kind}
-        onValueChange={changeKind}
+        value={view}
+        onValueChange={changeView}
         className="min-h-0 flex-1 gap-0 overflow-hidden"
       >
         {formOpen ? null : (
@@ -554,8 +615,29 @@ export function SearchPanelContent({
                 <BriefcaseBusiness aria-hidden="true" />
                 {t('search.tabs.workspace')}
               </TabsTrigger>
+              <TabsTrigger
+                value="tools"
+                className="px-2"
+              >
+                <PocketKnife aria-hidden="true" />
+                {t('search.tabs.tools')}
+              </TabsTrigger>
             </TabsList>
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-center justify-end gap-2">
+              {view === 'workspace' && canStashPage ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={stashingPage}
+                  onClick={() => void stashCurrentPage()}
+                  className="min-w-0 flex-1 sm:flex-none"
+                >
+                  <Link2 aria-hidden="true" />
+                  <span className="truncate">{t('search.stashPage')}</span>
+                </Button>
+              ) : null}
+              {toolsView ? null : (
               <Button
                 type="button"
                 variant="secondary"
@@ -566,7 +648,9 @@ export function SearchPanelContent({
                 <Plus aria-hidden="true" />
                 <span className="truncate">{t('search.create.open')}</span>
               </Button>
+              )}
               <div className="flex shrink-0 items-center gap-1">
+                {toolsView ? null : (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -593,6 +677,7 @@ export function SearchPanelContent({
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+                )}
                 {toolbarEnd ? (
                   <div className="flex items-center gap-1">
                     {toolbarEnd}
@@ -603,7 +688,7 @@ export function SearchPanelContent({
           </div>
         )}
 
-        {!formOpen && selectedLabelFilter ? (
+        {!formOpen && !toolsView && selectedLabelFilter ? (
           <div className="shrink-0 px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
               <Tag className="size-3.5 shrink-0" aria-hidden="true" />
@@ -637,6 +722,12 @@ export function SearchPanelContent({
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           {kind === 'workspace' ? panelBody : null}
+        </TabsContent>
+        <TabsContent
+          value="tools"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        >
+          <ToolList onOpen={(tool) => onOpenTool?.(tool)} />
         </TabsContent>
       </Tabs>
     </div>

@@ -6,6 +6,7 @@ import {
   Check,
   Clock3,
   Copy,
+  ExternalLink,
   Globe2,
   LoaderCircle,
   Pencil,
@@ -39,8 +40,10 @@ import type {
 } from '../../../lib/browser/message-contract';
 import { toIntlLocale } from '../../../lib/i18n-catalog';
 import { getLocalizedLabelName } from '../../../lib/localized-values';
+import { getPageLinkUrl } from '../../../lib/page-link';
 import { useI18n } from '../../../lib/use-i18n';
 import { cn } from '../../../lib/utils';
+import { CopyFormatMenu, toVariableName } from './CopyFormatMenu';
 import { HighlightedText } from './HighlightedText';
 import { MarkdownContent } from './MarkdownContent';
 import { findSearchHighlightRanges } from './search-highlight';
@@ -72,7 +75,8 @@ export async function copySearchPanelItemContent(
   t: ReturnType<typeof useI18n>['t'],
 ) {
   try {
-    await navigator.clipboard.writeText(item.content);
+    // Stashed pages copy the full URL, not their Markdown link.
+    await navigator.clipboard.writeText(getPageLinkUrl(item) ?? item.content);
     return true;
   } catch {
     toast.error(t('search.results.copyFailed'));
@@ -127,6 +131,7 @@ export function SearchResultItem({
       : undefined;
   const workspaceActionsVisible =
     item.kind === 'workspace' && workspaceLifecycleActionsEnabled;
+  const pageLinkUrl = getPageLinkUrl(item);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -281,6 +286,40 @@ export function SearchResultItem({
                   {t(copied ? 'search.results.copied' : 'search.results.copy')}
                 </TooltipContent>
               </Tooltip>
+              {pageLinkUrl ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t('search.results.openLink')}
+                      asChild
+                    >
+                      <a
+                        href={pageLinkUrl}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        <ExternalLink className="size-4" aria-hidden="true" />
+                      </a>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    portalContainer={portalContainer}
+                    side="top"
+                    sideOffset={4}
+                  >
+                    {t('search.results.openLink')}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <CopyFormatMenu
+                  value={item.content}
+                  defaultName={toVariableName(item.labels[0]?.name)}
+                  portalContainer={portalContainer}
+                />
+              )}
               <div className="flex items-center gap-0.5">
                 {workspaceActionsVisible ? (
                   <>

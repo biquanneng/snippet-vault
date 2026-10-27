@@ -13,11 +13,17 @@ endpoints, commands, notes, and short-lived working data.
 Its core workflow is deliberately small:
 
 1. Select page content and press `Command/Ctrl+C` twice to save it as Markdown
-   instantly, with labels detected from the content format.
+   instantly, with labels detected from the content format. With nothing
+   selected, the same shortcut stashes the current page link.
 2. Create a text or Markdown snippet directly from the search panel.
 3. Double-press `Shift` to search and copy saved information.
 4. Click the toolbar icon to open the same search on the current page;
    settings open in Chrome's side panel.
+5. Open developer tools, such as the JSON tool, from **Tools**.
+
+Records live in two places: **Secrets** for anything you keep long term, and
+**Temporary** for short-lived snippets and links that expire automatically.
+"Secrets" is a name, not encryption: both are stored as plaintext.
 
 SnippetVault is being developed as an open-source product by
 [biqn.dev](https://biqn.dev). The hosted extension will be built from the same
@@ -89,11 +95,20 @@ SnippetVault runs automatically on supported Chrome web pages. Select content
 on an HTTP or HTTPS page and press `Command+C` twice on macOS, or `Ctrl+C`
 twice on Windows and Linux, within 400ms. The first copy stays a normal browser
 copy; the second saves the selection silently, with no form to fill in. A short
-confirmation offers **Undo**, **Move to vault** for temporary records, and
+confirmation offers **Undo**, **Move to Secrets** for temporary records, and
 **More** to turn quick save off on the current page or site. Quick save writes
-to the temporary workspace by default; choose the Vault instead under
+to Temporary by default; choose Secrets instead under
 **Settings → General → Quick save**. Saving identical content to the same place
 again reuses the existing record instead of creating a copy.
+
+With nothing selected and focus outside an editable field, the same
+`Command/Ctrl+C` twice stashes the current page as a link record
+(`[title](<url>)`) in the quick save target. Stashing a URL that already has an
+active Temporary record extends that record instead of adding a copy, and
+**Undo** restores the previous expiry. The confirmation never shows the full
+URL, since query strings can carry tokens; copying or opening a link record
+uses the full URL. The **Stash this page** button at the top of the
+**Temporary** tab does the same and always saves to Temporary.
 
 The explicitly selected HTML fragment is converted to Markdown; raw HTML and
 remote images are not stored. Labels are detected locally from the content
@@ -107,20 +122,37 @@ In-page SnippetVault UI is shown in the browser's top layer, so ordinary page
 overlays cannot cover it. While a page has its own modal dialog open, the
 browser may show SnippetVault UI without letting you interact with it.
 
-Press `Shift` twice within 400ms to open the search modal. The **Vault** tab
+Press `Shift` twice within 400ms to open the search modal. Double `Shift` is
+ignored while typing in an input, textarea, or rich-text editor. If a site
+captures the keyboard, press `Ctrl+Shift+K` (`Command+Shift+K` on macOS), or
+assign another key under `chrome://extensions/shortcuts`; it opens the same
+panel as the toolbar icon. The **Secrets** tab
 groups records by source domain; **Temporary** keeps active temporary records
 in a flat list. Press `Enter` to submit a query; typing alone does not search.
 Saved Markdown is rendered as a readable, safe React view, and matched terms
 are highlighted after authoritative records are loaded. Empty searches can be
-paged independently in either tab. Use **New** to save manually entered text or
+paged independently in either tab; records from the current site are listed
+first. Use **New** to save manually entered text or
 Markdown with optional labels. Labels are preselected from the content format
-until you choose labels yourself, and they are optional for both Vault and
-temporary workspace records. The active tab decides whether the record is
-permanent or expires from the temporary workspace. A new record captures the
+until you choose labels yourself, and they are optional for both Secrets and
+Temporary records. The active tab decides whether the record is
+permanent or expires from Temporary. A new record captures the
 title and URL of the web page you are on as its source; you can remove it
 before saving, and restricted pages provide no source. Use the refresh button
 next to **New** to reload the current result set without changing the active
 tab or query.
+
+Each result copies its raw content with one click. **Copy as…** wraps it as a
+shell `export`, a `.env` line, a JSON field, or an HTTP header, escaping the
+value and rejecting header values that contain line breaks. Converted text is
+only copied, never saved.
+
+The **Tools** tab, after **Temporary**, lists the extension's tools; the side
+panel has the same **Tools** entry. The JSON tool opens in its own extension
+tab (reusing it if already open) and formats, minifies, or unescapes JSON.
+Formatting only rewrites whitespace, so large integers and number literals are
+kept exactly. Input and output stay in that tab's memory and are never saved,
+indexed, or sent anywhere.
 
 Existing records can be edited from the same result list. Editing updates
 content and labels while preserving the record type, captured source, and
@@ -129,13 +161,13 @@ creation time; temporary records can also receive a new future expiry.
 Click the SnippetVault toolbar icon to open the same in-page search panel
 without the keyboard shortcut. This also works in tabs that were open before
 SnippetVault was installed or updated. SnippetVault does not use an action
-popup. Chrome's side panel holds settings only: open it from the settings
+popup. Chrome's side panel holds Tools, settings, and the guide: open it from the settings
 button in the search panel, or by clicking the toolbar icon on a page where
 extensions cannot run, such as Chrome built-in pages or the Chrome Web Store.
 Click a label on any result to filter by it.
 Temporary records can be extended by the configured default number of days or
-promoted to permanent Vault records; Vault records cannot be converted back to
-temporary records.
+promoted to permanent Secrets records; Secrets records cannot be converted back
+to temporary records.
 
 SnippetVault supports English and Simplified Chinese. It follows Chrome's
 language by default; open the side panel settings to override that choice. The
@@ -145,6 +177,10 @@ and in-page search modal without reloading the current website.
 SnippetVault follows the operating-system theme by default. Use the theme
 control in side panel settings to choose light or dark explicitly. Theme changes
 stay local to the extension UI and never restyle the current website.
+
+The first time the search panel opens, a short guide explains Secrets,
+Temporary, Tools, and the two shortcuts. Reopen it from **Getting started** in
+the side panel.
 
 Side panel settings are organized into **General**, **Labels**, and
 **Storage**. **General** holds the theme, language, quick save target, quick

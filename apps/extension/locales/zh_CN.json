@@ -2,6 +2,7 @@
   "extName": "SnippetVault — 开发者代码片段管理器",
   "extDescription": "在浏览器本地保存、搜索和复制 API 密钥、Token 与代码片段，不再反复翻找 .env 文件。",
   "actionTitle": "打开 SnippetVault",
+  "commandOpenSearch": "打开 SnippetVault 检索",
   "language": {
     "label": "语言",
     "system": "跟随浏览器",
@@ -39,7 +40,15 @@
         "description": "本地数据、备份导出与还原"
       },
       "sourceCode": "在 GitHub 上开源",
-      "star": "点个 Star"
+      "star": "点个 Star",
+      "tools": {
+        "title": "Tools",
+        "description": "在新标签页中打开开发者工具"
+      },
+      "guide": {
+        "title": "使用引导",
+        "description": "入口与快捷键一览"
+      }
     },
     "appearance": {
       "title": "外观",
@@ -133,13 +142,13 @@
       "exportBackup": "导出备份",
       "importBackup": "导入备份",
       "importPreviewTitle": "要替换本地数据吗？",
-      "importReplaceWarning": "导入会完整替换已保存的标签、保管库项目和临时工作区项目。",
+      "importReplaceWarning": "导入会完整替换已保存的标签、机密项目和临时库项目。",
       "importPreferencesUnaffected": "你的 SnippetVault 界面偏好不会被修改。",
       "backupFormat": "格式版本",
       "backupExportedAt": "导出时间",
       "backupLabels": "标签",
-      "backupVaultItems": "保管库项目",
-      "backupWorkspaceItems": "临时工作区项目",
+      "backupVaultItems": "机密项目",
+      "backupWorkspaceItems": "临时库项目",
       "backupExpiredSkipped": "已跳过的过期临时项目",
       "importReplace": "替换本地数据",
       "cancel": "取消",
@@ -174,9 +183,9 @@
     },
     "quickSave": {
       "title": "快捷保存",
-      "description": "Command/Ctrl+C+C 保存选区的位置。临时工作区中的记录会自动过期。",
-      "workspace": "临时工作区",
-      "vault": "保管库",
+      "description": "Command/Ctrl+C+C 保存选区的位置。临时库中的记录会自动过期。",
+      "workspace": "临时库",
+      "vault": "机密",
       "saveFailed": "快捷保存设置保存失败"
     }
   },
@@ -227,23 +236,24 @@
     "refresh": "刷新结果",
     "input": {
       "vault": "搜索内容、标签或来源…",
-      "workspace": "搜索临时工作区…",
+      "workspace": "搜索临时库…",
       "clear": "清空搜索"
     },
     "dialog": {
       "title": "检索 SnippetVault",
-      "description": "搜索保管库记录或临时工作区内容",
+      "description": "搜索机密记录或临时库内容",
       "close": "关闭"
     },
     "tabs": {
-      "vault": "保管库",
-      "workspace": "临时工作区"
+      "vault": "机密",
+      "workspace": "临时库",
+      "tools": "Tools"
     },
     "create": {
       "open": "新建",
       "title": "新建片段",
-      "vaultDescription": "直接输入文本或 Markdown，保存到保管库。",
-      "workspaceDescription": "保存到临时工作区，并使用设置中的默认过期时间。",
+      "vaultDescription": "直接输入文本或 Markdown，保存到机密。",
+      "workspaceDescription": "保存到临时库，并使用设置中的默认过期时间。",
       "contentLabel": "内容",
       "contentPlaceholder": "输入文本或 Markdown…",
       "contentRequired": "请先输入内容",
@@ -300,7 +310,7 @@
       "noMatches": "没有匹配结果",
       "noRecords": "这里还没有记录",
       "vaultEmpty": "保存的网页选区会出现在这里。",
-      "workspaceEmpty": "临时保存的内容会在到期或转入保管库前显示在这里。",
+      "workspaceEmpty": "临时保存的内容会在到期或转为机密前显示在这里。",
       "groupCount": "$1 条",
       "loading": "正在检索",
       "unknownSource": "未记录来源",
@@ -323,13 +333,14 @@
       "extendFailed": "延期失败",
       "extended": "过期时间已延期",
       "extendedDescription": "新的到期时间：$1（+ $2 天）",
-      "promote": "转为保管库",
-      "promoteFailed": "转入保管库失败",
-      "promoted": "已转入保管库",
+      "promote": "转为机密",
+      "promoteFailed": "转为机密失败",
+      "promoted": "已转为机密",
       "workspaceConflict": "这条临时记录已发生变化",
       "workspaceConflictDescription": "请刷新结果后再试一次。",
       "workspaceNotFound": "这条临时记录已不存在",
-      "workspaceNotFoundDescription": "请刷新结果以加载最新的临时记录。"
+      "workspaceNotFoundDescription": "请刷新结果以加载最新的临时记录。",
+      "openLink": "打开链接"
     },
     "status": {
       "indexRebuild": "搜索索引正在等待恢复，结果会自动重建。",
@@ -341,22 +352,86 @@
       "previous": "上一页",
       "next": "下一页",
       "page": "第 $1 页"
+    },
+    "stashPage": "暂存当前页",
+    "copyFormats": {
+      "open": "按格式复制…",
+      "name": "名称",
+      "namePlaceholder": "名称（可选）",
+      "shellExport": "Shell export",
+      "dotenv": ".env",
+      "jsonField": "JSON 字段",
+      "httpHeader": "HTTP Header",
+      "errors": {
+        "invalidVariableName": "名称只能包含字母、数字和下划线，且不能以数字开头。",
+        "invalidShellValue": "该值无法用作 Shell 变量。",
+        "invalidDotenvValue": "该值同时包含所有引号类型，无法安全写入 .env。",
+        "invalidHeaderName": "不是合法的 HTTP Header 名称。",
+        "invalidHeaderValue": "HTTP Header 的值不能包含换行。"
+      }
     }
   },
   "quickSave": {
-    "savedWorkspace": "已保存到临时工作区",
-    "savedVault": "已保存到保管库",
+    "savedWorkspace": "已保存到临时库",
+    "savedVault": "已保存到机密",
     "expiresIn": "$1 天后过期",
     "duplicate": "已保存过",
-    "duplicateWorkspace": "临时工作区中已有相同内容。",
-    "duplicateVault": "保管库中已有相同内容。",
+    "duplicateWorkspace": "临时库中已有相同内容。",
+    "duplicateVault": "机密中已有相同内容。",
     "undo": "撤销",
     "undone": "已撤销保存",
     "undoFailed": "撤销失败",
-    "promote": "转为保管库",
-    "promoted": "已转入保管库",
-    "promoteFailed": "转入保管库失败",
+    "promote": "转为机密",
+    "promoted": "已转为机密",
+    "promoteFailed": "转为机密失败",
     "more": "更多",
-    "saveFailed": "选区保存失败"
+    "saveFailed": "选区保存失败",
+    "savedPage": "已暂存当前页",
+    "pageExtended": "已存在，已延长有效期"
+  },
+  "tools": {
+    "json": {
+      "title": "JSON 工具",
+      "format": "格式化",
+      "minify": "压缩",
+      "unescape": "去转义",
+      "copy": "复制结果",
+      "clear": "清空",
+      "copied": "已复制",
+      "input": "JSON 输入",
+      "output": "结果",
+      "inputPlaceholder": "粘贴 JSON 或转义后的 JSON 字符串…",
+      "outputPlaceholder": "结果显示在这里",
+      "processing": "处理中…",
+      "errors": {
+        "empty": "请先输入 JSON。",
+        "tooLarge": "输入超过 10 MB，无法处理。",
+        "outputTooLarge": "格式化结果过大（嵌套过深），可改用「压缩」。",
+        "invalidJson": "不是合法的 JSON。",
+        "invalidJsonAt": "JSON 不合法：第 $1 行第 $2 列",
+        "notStringLiteral": "不是合法的 JSON 字符串字面量，未执行去转义。",
+        "copyFailed": "无法复制到剪贴板。"
+      }
+    }
+  },
+  "onboarding": {
+    "title": "欢迎使用 SnippetVault",
+    "done": "知道了",
+    "secrets": {
+      "title": "机密",
+      "description": "Token、API Key 及需要长期保存的内容。仅保存在本机，未加密。"
+    },
+    "temporary": {
+      "title": "临时库",
+      "description": "短期使用的片段与链接。快捷保存默认存入这里，默认 7 天后过期。"
+    },
+    "tools": {
+      "title": "Tools",
+      "description": "JSON 工具等实用工具，在独立标签页中打开。"
+    },
+    "shortcuts": {
+      "quickSave": "保存选区；未选中内容时暂存当前页",
+      "search": "打开检索（也可使用 Ctrl/⌘+Shift+K）"
+    }
   }
 }

@@ -1,0 +1,23 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+
+@import "../../assets/globals.css";
+
+:root {
+  --json-key: oklch(0.45 0.15 260);
+  --json-string: oklch(0.5 0.13 150);
+  --json-number: oklch(0.55 0.16 45);
+  --json-literal: oklch(0.5 0.17 330);
+}
+
+.dark {
+  --json-key: oklch(0.75 0.12 250);
+  --json-string: oklch(0.78 0.13 150);
+  --json-number: oklch(0.8 0.13 60);
+  --json-literal: oklch(0.75 0.14 330);
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--background);
+}

@@ -34,8 +34,17 @@ export default defineConfig({
     homepage_url: "https://github.com/biquanneng/snippet-vault",
     key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsP7+yPlOHj40nGkiU7ItxVbOkt+1rxLcPlU0nWE5qTEYeypOxKVFewONLB2XtiBdj9IuNvO33jUxFi9mO4E8Sgm/y6B7z4c+ooZIw66Zf7aZlIscRiJbMAk4UrvalM2aH7TmP8AxV/oT6gl8hCKfIgqqTa/838OOcv9Z7F+c0qPqua8D9H0/9lgX040IbUAMlfXW1C/Ov7tshUgmM1SaYt42fcCVS7Ye9d3v17sILNG8cv1CY/CsOfSwr1/OZfZliG3zDUfmbmtDyK8BhYrHmElH9iSTrKvJnXcAXu/KwxOnQS7a/eh9otIFM7kKfBje7Fsl/ybKSJuXTs1RVszSsQIDAQAB",
     // activeTab + scripting inject the in-page panel into tabs that were
-    // open before install/update, only when the toolbar icon is clicked.
+    // open before install/update, when the toolbar or command is invoked.
     permissions: ["storage", "activeTab", "scripting"],
+    commands: {
+      "open-search-panel": {
+        suggested_key: {
+          default: "Ctrl+Shift+K",
+          mac: "Command+Shift+K",
+        },
+        description: "__MSG_commandOpenSearch__",
+      },
+    },
     optional_host_permissions: ["https://www.google-analytics.com/*"],
     action: {
       default_title: "__MSG_actionTitle__",

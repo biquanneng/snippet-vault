@@ -10,6 +10,8 @@ import {
   ArrowLeft,
   ChevronRight,
   Database,
+  Lightbulb,
+  PocketKnife,
   SlidersHorizontal,
   Star,
   Tags,
@@ -34,13 +36,17 @@ import { type ThemePreference } from '../../lib/theme';
 import { useThemePreference } from '../../lib/use-theme';
 import { getWorkspaceExpiryDays } from '../../lib/workspace-expiry';
 import { GeneralSettings } from './GeneralSettings';
+import { GuideSettings } from './GuideSettings';
 import { StorageSettings } from './StorageSettings';
 import { TaxonomySettings } from './TaxonomySettings';
+import { ToolsSettings } from './ToolsSettings';
 
 type SettingsSectionId =
+  | 'tools'
   | 'general'
   | 'taxonomy'
-  | 'storage';
+  | 'storage'
+  | 'guide';
 
 interface SettingsMenuItem {
   id: SettingsSectionId;
@@ -56,6 +62,13 @@ interface SettingsSnapshot {
 }
 
 const SETTINGS_MENU_ITEMS: readonly SettingsMenuItem[] = [
+  {
+    id: 'tools',
+    icon: PocketKnife,
+    titleKey: 'settings.menu.tools.title',
+    descriptionKey: 'settings.menu.tools.description',
+    content: ToolsSettings,
+  },
   {
     id: 'general',
     icon: SlidersHorizontal,
@@ -76,6 +89,13 @@ const SETTINGS_MENU_ITEMS: readonly SettingsMenuItem[] = [
     titleKey: 'settings.menu.storage.title',
     descriptionKey: 'settings.menu.storage.description',
     content: StorageSettings,
+  },
+  {
+    id: 'guide',
+    icon: Lightbulb,
+    titleKey: 'settings.menu.guide.title',
+    descriptionKey: 'settings.menu.guide.description',
+    content: GuideSettings,
   },
 ] as const;
 
@@ -149,6 +169,8 @@ export function SettingsPage() {
               'settings.storage.backupLabels',
             )}`,
       storage: `${t('settings.storage.active')} · .sv`,
+      tools: 'JSON',
+      guide: '',
     }),
     [
       languagePreference,

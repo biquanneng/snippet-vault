@@ -257,7 +257,7 @@ const TemporaryWorkspaceLayout = ({
           width: 450,
         }}
       >
-        <FeatureBadge label="Expiring workspace" />
+        <FeatureBadge label="Auto-expiring Temporary" />
         <Headline fontSize={52} width={440}>
           {copy.headline}
         </Headline>

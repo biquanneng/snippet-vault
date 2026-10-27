@@ -2,6 +2,7 @@
   "extName": "SnippetVault — Developer Snippet Manager",
   "extDescription": "Save, search, and copy API keys, tokens, and code snippets locally in your browser — without digging through .env files.",
   "actionTitle": "Open SnippetVault",
+  "commandOpenSearch": "Open SnippetVault search",
   "language": {
     "label": "Language",
     "system": "Follow browser",
@@ -39,7 +40,15 @@
         "description": "Local data, backup export, and restore"
       },
       "sourceCode": "Open source on GitHub",
-      "star": "Star"
+      "star": "Star",
+      "tools": {
+        "title": "Tools",
+        "description": "Open developer tools in a new tab"
+      },
+      "guide": {
+        "title": "Getting started",
+        "description": "Entries and shortcuts at a glance"
+      }
     },
     "appearance": {
       "title": "Appearance",
@@ -133,13 +142,13 @@
       "exportBackup": "Export backup",
       "importBackup": "Import backup",
       "importPreviewTitle": "Replace local data?",
-      "importReplaceWarning": "Importing this backup fully replaces saved labels, vault items, and temporary workspace items.",
+      "importReplaceWarning": "Importing this backup fully replaces saved labels, Secrets items, and Temporary items.",
       "importPreferencesUnaffected": "Your SnippetVault UI preferences are not changed.",
       "backupFormat": "Format version",
       "backupExportedAt": "Exported",
       "backupLabels": "Labels",
-      "backupVaultItems": "Vault items",
-      "backupWorkspaceItems": "Temporary workspace items",
+      "backupVaultItems": "Secrets items",
+      "backupWorkspaceItems": "Temporary items",
       "backupExpiredSkipped": "Expired temporary items skipped",
       "importReplace": "Replace local data",
       "cancel": "Cancel",
@@ -175,8 +184,8 @@
     "quickSave": {
       "title": "Quick save",
       "description": "Where Command/Ctrl+C+C saves the selection. Temporary items expire automatically.",
-      "workspace": "Temporary workspace",
-      "vault": "Vault",
+      "workspace": "Temporary",
+      "vault": "Secrets",
       "saveFailed": "Could not save the quick save preference"
     }
   },
@@ -227,23 +236,24 @@
     "refresh": "Refresh results",
     "input": {
       "vault": "Search content, labels, or source…",
-      "workspace": "Search temporary workspace…",
+      "workspace": "Search Temporary…",
       "clear": "Clear search"
     },
     "dialog": {
       "title": "Search SnippetVault",
-      "description": "Search saved records or temporary workspace items",
+      "description": "Search Secrets records or Temporary items",
       "close": "Close"
     },
     "tabs": {
-      "vault": "Vault",
-      "workspace": "Temporary"
+      "vault": "Secrets",
+      "workspace": "Temporary",
+      "tools": "Tools"
     },
     "create": {
       "open": "New",
       "title": "New snippet",
-      "vaultDescription": "Enter text or Markdown and save it directly to the vault.",
-      "workspaceDescription": "Save it to the temporary workspace using your default expiry.",
+      "vaultDescription": "Enter text or Markdown and save it directly to Secrets.",
+      "workspaceDescription": "Save it to Temporary using your default expiry.",
       "contentLabel": "Content",
       "contentPlaceholder": "Enter text or Markdown…",
       "contentRequired": "Enter content before saving",
@@ -300,7 +310,7 @@
       "noMatches": "No matching results",
       "noRecords": "No records yet",
       "vaultEmpty": "Saved webpage selections will appear here.",
-      "workspaceEmpty": "Temporary items will appear here until they expire or move to the vault.",
+      "workspaceEmpty": "Temporary items will appear here until they expire or move to Secrets.",
       "groupCount": "$1 item | $1 items",
       "loading": "Searching",
       "unknownSource": "Unknown source",
@@ -323,13 +333,14 @@
       "extendFailed": "Could not extend the expiry",
       "extended": "Expiry extended",
       "extendedDescription": "New expiry: $1 (+$2 day) | New expiry: $1 (+$2 days)",
-      "promote": "Move to vault",
-      "promoteFailed": "Could not move the item to the vault",
-      "promoted": "Moved to vault",
+      "promote": "Move to Secrets",
+      "promoteFailed": "Could not move the item to Secrets",
+      "promoted": "Moved to Secrets",
       "workspaceConflict": "This temporary item changed",
       "workspaceConflictDescription": "Refresh the results and try this action again.",
       "workspaceNotFound": "This temporary item no longer exists",
-      "workspaceNotFoundDescription": "Refresh the results to load the latest temporary items."
+      "workspaceNotFoundDescription": "Refresh the results to load the latest temporary items.",
+      "openLink": "Open link"
     },
     "status": {
       "indexRebuild": "Search index recovery is pending; results will rebuild automatically.",
@@ -341,22 +352,86 @@
       "previous": "Previous",
       "next": "Next",
       "page": "Page $1"
+    },
+    "stashPage": "Stash this page",
+    "copyFormats": {
+      "open": "Copy as…",
+      "name": "Name",
+      "namePlaceholder": "Name (optional)",
+      "shellExport": "Shell export",
+      "dotenv": ".env",
+      "jsonField": "JSON field",
+      "httpHeader": "HTTP header",
+      "errors": {
+        "invalidVariableName": "Use letters, digits, and underscores, not starting with a digit.",
+        "invalidShellValue": "This value cannot be used in a shell variable.",
+        "invalidDotenvValue": "This value mixes every quote style and cannot be written to .env safely.",
+        "invalidHeaderName": "This is not a valid HTTP header name.",
+        "invalidHeaderValue": "HTTP header values cannot contain line breaks."
+      }
     }
   },
   "quickSave": {
-    "savedWorkspace": "Saved to Temporary workspace",
-    "savedVault": "Saved to Vault",
+    "savedWorkspace": "Saved to Temporary",
+    "savedVault": "Saved to Secrets",
     "expiresIn": "Expires in $1 days",
     "duplicate": "Already saved",
-    "duplicateWorkspace": "The same content is already in the Temporary workspace.",
-    "duplicateVault": "The same content is already in the Vault.",
+    "duplicateWorkspace": "The same content is already in Temporary.",
+    "duplicateVault": "The same content is already in Secrets.",
     "undo": "Undo",
     "undone": "Save undone",
     "undoFailed": "Could not undo the save",
-    "promote": "Move to vault",
-    "promoted": "Moved to vault",
-    "promoteFailed": "Could not move the item to the vault",
+    "promote": "Move to Secrets",
+    "promoted": "Moved to Secrets",
+    "promoteFailed": "Could not move the item to Secrets",
     "more": "More",
-    "saveFailed": "Could not save the selection"
+    "saveFailed": "Could not save the selection",
+    "savedPage": "Page stashed",
+    "pageExtended": "Already stashed; expiry extended"
+  },
+  "tools": {
+    "json": {
+      "title": "JSON Tool",
+      "format": "Format",
+      "minify": "Minify",
+      "unescape": "Unescape",
+      "copy": "Copy result",
+      "clear": "Clear",
+      "copied": "Copied",
+      "input": "JSON input",
+      "output": "Result",
+      "inputPlaceholder": "Paste JSON or an escaped JSON string…",
+      "outputPlaceholder": "The result appears here",
+      "processing": "Processing…",
+      "errors": {
+        "empty": "Enter some JSON first.",
+        "tooLarge": "Input is larger than 10 MB.",
+        "outputTooLarge": "The formatted result would be too large. Try Minify instead.",
+        "invalidJson": "This is not valid JSON.",
+        "invalidJsonAt": "Invalid JSON at line $1, column $2",
+        "notStringLiteral": "Not a valid JSON string literal, so nothing was unescaped.",
+        "copyFailed": "Could not copy to the clipboard."
+      }
+    }
+  },
+  "onboarding": {
+    "title": "Welcome to SnippetVault",
+    "done": "Got it",
+    "secrets": {
+      "title": "Secrets",
+      "description": "Tokens, API keys, and anything you keep long term. Stored only on this device, not encrypted."
+    },
+    "temporary": {
+      "title": "Temporary",
+      "description": "Short-lived snippets and links. Quick saves land here and expire after 7 days by default."
+    },
+    "tools": {
+      "title": "Tools",
+      "description": "Utilities such as the JSON tool, each opened in its own tab."
+    },
+    "shortcuts": {
+      "quickSave": "Save the selection; with nothing selected, stash the current page",
+      "search": "Open search (Ctrl/⌘+Shift+K also works)"
+    }
   }
 }

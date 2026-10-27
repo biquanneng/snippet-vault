@@ -43,6 +43,8 @@ export interface SearchOptions extends RecordFilterOptions {
 export interface BrowseOptions extends RecordFilterOptions {
   offset?: number;
   limit?: number;
+  /** Exact hostname to prioritize before applying pagination. */
+  preferredDomain?: string;
 }
 
 export interface BrowsePage {
@@ -592,7 +594,10 @@ export class SnippetVaultService {
       options,
     );
     records.sort((left, right) => this.compareDefaultRecords(left, right));
-    const results = records
+    const orderedRecords = options.preferredDomain
+      ? this.prioritizeDomain(records, options.preferredDomain)
+      : records;
+    const results = orderedRecords
       .slice(offset, offset + limit)
       .map((record) => ({
         ref: { kind: record.kind, id: record.item.id },
@@ -674,6 +679,33 @@ export class SnippetVaultService {
       return 0;
     }
     return left.item.id < right.item.id ? -1 : 1;
+  }
+
+  private prioritizeDomain(
+    records: StoredRecord[],
+    hostname: string,
+  ): StoredRecord[] {
+    const matching: StoredRecord[] = [];
+    const remaining: StoredRecord[] = [];
+    for (const record of records) {
+      (this.matchesDomain(record, hostname) ? matching : remaining).push(record);
+    }
+    return [...matching, ...remaining];
+  }
+
+  private matchesDomain(record: StoredRecord, hostname: string): boolean {
+    const source = record.item.source;
+    if (source?.domain !== undefined) {
+      return source.domain === hostname;
+    }
+    if (!source?.url) {
+      return false;
+    }
+    try {
+      return new URL(source.url).hostname === hostname;
+    } catch {
+      return false;
+    }
   }
 
   private isExpired(record: StoredRecord, now: number): boolean {
